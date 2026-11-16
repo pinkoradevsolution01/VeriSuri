@@ -28,6 +28,9 @@ alter table public.web_risk_monthly_usage enable row level security;
 alter table public.web_risk_daily_usage enable row level security;
 
 -- Users can view their own plan; only a trusted payment webhook/service role can activate paid plans.
+drop policy if exists "own_web_risk_daily_usage" on public.web_risk_daily_usage;
+drop policy if exists "staff_web_risk_usage" on public.web_risk_daily_usage;
+drop policy if exists "staff_web_risk_monthly_usage" on public.web_risk_monthly_usage;
 create policy "own_web_risk_daily_usage" on public.web_risk_daily_usage for select using (user_id = auth.uid());
 create policy "staff_web_risk_usage" on public.web_risk_daily_usage for select using (public.is_staff());
 create policy "staff_web_risk_monthly_usage" on public.web_risk_monthly_usage for select using (public.is_staff());
