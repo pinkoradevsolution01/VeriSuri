@@ -14,6 +14,8 @@ class Assessment(BaseModel):
     verdict: str
     summary: str
     signals: list[str] = []
+    recommendation_title: str
+    recommendations: list[str]
     engine_version: str
     source: str
 

@@ -8,6 +8,8 @@ export type Assessment = {
   verdict: string
   summary: string
   signals: string[]
+  recommendation_title: string
+  recommendations: string[]
   engine_version: string
   source: string
 }

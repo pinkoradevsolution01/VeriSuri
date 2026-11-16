@@ -61,19 +61,19 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
                         source = "google-web-risk+zero-fee-threat-feeds+python-rules"
                         signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
-    return build_assessment(score, signals, detector.version, source)
+    return build_assessment(score, signals, detector.version, source, "link", payload.url)
 
-async def lookup_entity(identifier: str, entity_type: str) -> Assessment:
+async def lookup_entity(identifier: str, entity_type: str, context: str) -> Assessment:
     count = await repository.report_count(entity_type, identifier)
-    if count is None: return build_assessment(0, ["Community report matching will activate after Supabase is configured"], detector.version, "community-report-pending")
-    if count: return build_assessment(min(95, 62 + count * 8), [f"Matched {count} confirmed community report(s)"], detector.version, "supabase-report-matching")
-    return build_assessment(0, ["No confirmed community reports matched this identifier"], detector.version, "supabase-report-matching")
+    if count is None: return build_assessment(0, ["Community report matching will activate after Supabase is configured"], detector.version, "community-report-pending", context, identifier)
+    if count: return build_assessment(min(95, 62 + count * 8), [f"Matched {count} confirmed community report(s)"], detector.version, "supabase-report-matching", context, identifier)
+    return build_assessment(0, ["No confirmed community reports matched this identifier"], detector.version, "supabase-report-matching", context, identifier)
 
 @app.post("/api/v1/check/payment", response_model=Assessment)
-async def check_payment(payload: PaymentRequest) -> Assessment: return await lookup_entity(payload.identifier, payload.provider)
+async def check_payment(payload: PaymentRequest) -> Assessment: return await lookup_entity(payload.identifier, payload.provider, "payment")
 
 @app.post("/api/v1/reports/lookup", response_model=Assessment)
-async def report_lookup(payload: ReportLookupRequest) -> Assessment: return await lookup_entity(payload.identifier, payload.entity_type)
+async def report_lookup(payload: ReportLookupRequest) -> Assessment: return await lookup_entity(payload.identifier, payload.entity_type, "report")
 
 @app.post("/api/v1/reports", status_code=501)
 async def create_report(payload: ScamReportCreate) -> dict[str, str]:
