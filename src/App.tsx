@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import {
-  Bell, ChevronRight, CircleHelp, ClipboardList, ExternalLink,
-  Flag, Home, Link2, Menu, MessageSquareText, Search, Send, Shield, ShieldAlert,
-  ShieldCheck, Sparkles, TriangleAlert, UserRound, X, Zap
+  Bell, ChevronRight, CircleHelp, ClipboardList,
+  Flag, Home, Link2, MessageSquareText, Search, Shield, ShieldAlert,
+  ShieldCheck, TriangleAlert
 } from 'lucide-react'
 import { analyzeFeature, type Assessment } from './lib/api'
 
@@ -32,10 +32,15 @@ function RiskCard({ title = 'Safe to Pay', subtle = 'No scam reports found for t
   </div>
 }
 
-function Header({ setView }: { setView: (view: View) => void }) {
+function Header({ view, setView }: { view: View; setView: (view: View) => void }) {
   return <header>
-    <Brand compact />
-    <button className="menu-button" aria-label="Open menu"><Menu size={23} /></button>
+    <button className="brand-button" onClick={() => setView('home')} aria-label="VeriSuri home"><Brand compact /></button>
+    <nav className="desktop-nav" aria-label="Main navigation">
+      <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>Dashboard</button>
+      <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Report lookup</button>
+      <button className={view === 'alerts' ? 'active' : ''} onClick={() => setView('alerts')}>Safety alerts</button>
+    </nav>
+    <button className="alert-button" onClick={() => setView('alerts')} aria-label="Open safety alerts"><Bell size={20} /></button>
   </header>
 }
 
@@ -50,7 +55,7 @@ function HomeScreen({ setView }: { setView: (view: View) => void }) {
         <span className="feature-icon"><Icon /></span><strong>{title}</strong><small>{caption}</small>
       </button>)}
     </section>
-    <button className="report-strip" onClick={() => setView('reports')}><Flag /><span><b>Report a Scam</b><small>Help protect other Filipinos</small></span><ChevronRight /></button>
+    <button className="report-strip" onClick={() => setView('reports')}><Flag /><span><b>Search scam reports</b><small>Check reviewed community reports before you pay.</small></span><ChevronRight /></button>
     <section className="trust-row"><div><b>250K+</b><span>Filipinos Protected</span></div><div><b>1.8M+</b><span>Messages Analyzed</span></div><div><b>320K+</b><span>Scam Reports</span></div></section>
   </main>
 }
@@ -95,15 +100,14 @@ function FormScreen({ type, setView }: { type: Exclude<View, 'home' | 'alerts'>;
 }
 
 function AlertsScreen({ setView }: { setView: (view: View) => void }) {
-  return <main className="screen tool-screen alerts-screen"><button className="back" onClick={() => setView('home')}>← <span>Back</span></button><div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Alerts & Notifications</h1><p>Real-time scam advisories and important updates for a safer Philippines.</p></div><div className="type-tabs filter-tabs"><button className="active">All</button><button>Advisories</button><button>Alerts</button><button>Updates</button></div><section className="alert-list">{alerts.map(([title, copy, time, kind]) => <article key={title} className={`alert-item ${kind}`}><span>{kind === 'danger' ? <TriangleAlert /> : kind === 'warning' ? <TriangleAlert /> : <CircleHelp />}</span><div><h3>{title}</h3><p>{copy}</p><small>{time}</small></div><ChevronRight size={18} /></article>)}</section><button className="report-strip"><Sparkles /><span><b>App Update: Better Scam Detection</b><small>We’ve improved our AI model for higher accuracy.</small></span><ChevronRight /></button></main>
+  return <main className="screen tool-screen alerts-screen"><button className="back" onClick={() => setView('home')}>← <span>Back to dashboard</span></button><div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Moderated scam advisories and important safety updates for the Philippines.</p></div><section className="alert-list">{alerts.map(([title, copy, time, kind]) => <article key={title} className={`alert-item ${kind}`}><span>{kind === 'danger' ? <TriangleAlert /> : kind === 'warning' ? <TriangleAlert /> : <CircleHelp />}</span><div><h3>{title}</h3><p>{copy}</p><small>{time}</small></div><ChevronRight size={18} /></article>)}</section></main>
 }
 
 function BottomNav({ view, setView }: { view: View; setView: (view: View) => void }) {
-  return <nav className="bottom-nav"><button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}><Home /><span>Home</span></button><button onClick={() => setView('reports')}><ClipboardList /><span>History</span></button><button className={view === 'alerts' ? 'active' : ''} onClick={() => setView('alerts')}><Bell /><span>Alerts</span><i /></button><button><UserRound /><span>Profile</span></button></nav>
+  return <nav className="bottom-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}><Home /><span>Dashboard</span></button><button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><ClipboardList /><span>Reports</span></button><button className={view === 'alerts' ? 'active' : ''} onClick={() => setView('alerts')}><Bell /><span>Alerts</span></button></nav>
 }
 
 export default function App() {
   const [view, setView] = useState<View>('home')
-  const [installVisible, setInstallVisible] = useState(true)
-  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header setView={setView} />{view === 'home' ? <HomeScreen setView={setView} /> : view === 'alerts' ? <AlertsScreen setView={setView} /> : <FormScreen type={view} setView={setView} />}<BottomNav view={view} setView={setView} /></div>{installVisible && <button className="install-banner" onClick={() => setInstallVisible(false)}><span className="install-icon"><Zap /></span><span><b>Available as a PWA</b><small>Install VeriSuri for quick access</small></span><ExternalLink size={19} /><X className="dismiss" size={15} /></button>}</div>
+  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={setView} />{view === 'home' ? <HomeScreen setView={setView} /> : view === 'alerts' ? <AlertsScreen setView={setView} /> : <FormScreen type={view} setView={setView} />}<BottomNav view={view} setView={setView} /></div></div>
 }
