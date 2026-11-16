@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
-  Bell, ChevronRight, CircleHelp, ClipboardList,
+  Bell, CheckCircle2, ChevronRight, CircleHelp, ClipboardList,
   Download, Flag, Home, Link2, MessageSquareText, Search, Shield, ShieldAlert,
   ShieldCheck, TriangleAlert
 } from 'lucide-react'
 import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
-import { isSupabaseConfigured, sendMagicLink, signOut, submitScamReport, supabase } from './lib/supabase'
+import { isSupabaseConfigured, sendMagicLink, signInWithProvider, signOut, submitScamReport, supabase } from './lib/supabase'
 
-type View = 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'alerts'
+type View = 'overview' | 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'alerts'
 
-const validViews = new Set<View>(['home', 'pay', 'message', 'link', 'reports', 'report', 'alerts'])
+const validViews = new Set<View>(['overview', 'home', 'pay', 'message', 'link', 'reports', 'report', 'alerts'])
 const viewFromHash = (): View => {
   const candidate = window.location.hash.replace('#/', '').replace('#', '') as View
-  return validViews.has(candidate) ? candidate : 'home'
+  return validViews.has(candidate) ? candidate : 'overview'
 }
 
 const features: { id: View; title: string; caption: string; icon: typeof ShieldCheck }[] = [
@@ -41,8 +41,9 @@ function RiskCard({ title = 'Safe to Pay', subtle = 'No scam reports found for t
 
 function Header({ view, setView, canInstall, onInstall, userEmail, onAuth }: { view: View; setView: (view: View) => void; canInstall: boolean; onInstall: () => void; userEmail: string | null; onAuth: () => void }) {
   return <header>
-    <button className="brand-button" onClick={() => setView('home')} aria-label="VeriSuri home"><Brand compact /></button>
+    <button className="brand-button" onClick={() => setView('overview')} aria-label="VeriSuri overview"><Brand compact /></button>
     <nav className="desktop-nav" aria-label="Main navigation">
+      <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}>Overview</button>
       <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>Dashboard</button>
       <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Report lookup</button>
       <button className={view === 'alerts' ? 'active' : ''} onClick={() => setView('alerts')}>Safety alerts</button>
@@ -57,7 +58,12 @@ function Header({ view, setView, canInstall, onInstall, userEmail, onAuth }: { v
 function AuthDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState(''); const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false)
   const submit = async (event: React.FormEvent) => { event.preventDefault(); setLoading(true); setNotice(''); try { await sendMagicLink(email); setNotice('Check your email for the VeriSuri sign-in link.') } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not send the sign-in link.') } finally { setLoading(false) } }
-  return <div className="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title"><section className="auth-dialog"><button className="dialog-close" onClick={onClose} aria-label="Close sign in">×</button><ShieldCheck /><h2 id="auth-title">Sign in to VeriSuri</h2><p>Use a magic link to submit and manage your scam reports securely.</p>{isSupabaseConfigured ? <form onSubmit={submit}><label htmlFor="auth-email">Email address</label><input id="auth-email" type="email" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com" /><button className="primary-action" disabled={loading}>{loading ? 'Sending…' : 'Send sign-in link'}</button></form> : <p className="form-error">Supabase authentication is not configured.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}</section></div>
+  const oauth = async (provider: 'google' | 'facebook') => { setLoading(true); setNotice(''); try { await signInWithProvider(provider) } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not start sign-in.') } finally { setLoading(false) } }
+  return <div className="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title"><section className="auth-dialog"><button className="dialog-close" onClick={onClose} aria-label="Close sign in">×</button><ShieldCheck /><h2 id="auth-title">Join VeriSuri</h2><p>Create an account to submit reports, help improve community intelligence, and keep track of your submissions.</p>{isSupabaseConfigured ? <><div className="oauth-buttons"><button type="button" onClick={() => oauth('google')} disabled={loading}>Continue with Google</button><button type="button" onClick={() => oauth('facebook')} disabled={loading}>Continue with Facebook</button></div><div className="auth-divider"><span>or use email</span></div><form onSubmit={submit}><label htmlFor="auth-email">Email address</label><input id="auth-email" type="email" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com" /><button className="primary-action" disabled={loading}>{loading ? 'Sending…' : 'Send sign-in link'}</button></form></> : <p className="form-error">Supabase authentication is not configured.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}</section></div>
+}
+
+function OverviewScreen({ setView, onMember }: { setView: (view: View) => void; onMember: () => void }) {
+  return <main className="overview-page"><section className="overview-hero"><div><p className="eyebrow">Built for a safer Philippines</p><h1>Think twice.<br /><span>Check with VeriSuri.</span></h1><p>VeriSuri is a Philippine-focused protection app that helps people assess suspicious messages, links, payment requests, and community scam reports before they act.</p><div className="overview-actions"><button className="primary-action" onClick={onMember}>Be a member <ChevronRight size={19} /></button><button className="secondary-action" onClick={() => setView('home')}>Explore protection tools</button></div><p className="hero-assurance"><ShieldCheck size={17} /> Built around explainable checks, community review, and privacy-aware design.</p></div><div className="overview-orbit" aria-hidden="true"><div className="orbit-shield"><ShieldCheck /></div><span className="orbit-pill op-one">Message checks</span><span className="orbit-pill op-two">Link checks</span><span className="orbit-pill op-three">Report matching</span></div></section><section className="overview-section"><div className="section-heading"><div><p className="eyebrow">How VeriSuri works</p><h2>One careful check before one costly decision</h2></div><p>Use the app before you send money, follow a link, or trust an unfamiliar account.</p></div><div className="how-grid"><article><b>01</b><h3>Check</h3><p>Paste a message or link, or enter a payment identifier.</p></article><article><b>02</b><h3>Understand</h3><p>See clear risk signals and a plain-language recommendation.</p></article><article><b>03</b><h3>Act safely</h3><p>Verify through official channels or submit a report for moderation.</p></article></div></section><section className="benefit-section"><div><p className="eyebrow">Why it matters</p><h2>Safer decisions can scale to millions of Filipinos.</h2><p>When people can pause, verify, and report suspicious activity, communities gain stronger signals against recurring scams. VeriSuri is designed to make those safer choices easier on mobile, desktop, and the web.</p></div><ul><li><CheckCircle2 /> Clear checks for everyday payment and message decisions</li><li><CheckCircle2 /> Reviewed community reporting designed to reduce harmful misinformation</li><li><CheckCircle2 /> Philippine-focused language and scam-pattern support</li></ul></section><section className="member-band"><div><ShieldCheck /><div><h2>Help build a safer digital Philippines.</h2><p>Join VeriSuri to contribute responsibly reviewed reports and protect your next transaction.</p></div></div><button className="primary-action" onClick={onMember}>Be a member <ChevronRight size={19} /></button></section></main>
 }
 
 function HomeScreen({ setView }: { setView: (view: View) => void }) {
@@ -76,7 +82,7 @@ function HomeScreen({ setView }: { setView: (view: View) => void }) {
   </main>
 }
 
-function FormScreen({ type, setView }: { type: Exclude<View, 'home' | 'alerts' | 'report'>; setView: (view: View) => void }) {
+function FormScreen({ type, setView }: { type: Exclude<View, 'overview' | 'home' | 'alerts' | 'report'>; setView: (view: View) => void }) {
   const [value, setValue] = useState('')
   const [choice, setChoice] = useState('gcash')
   const [checked, setChecked] = useState(false)
@@ -144,5 +150,5 @@ export default function App() {
   useEffect(() => { const capture = (event: Event) => { event.preventDefault(); setInstallPrompt(event as unknown as { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) }; window.addEventListener('beforeinstallprompt', capture); return () => window.removeEventListener('beforeinstallprompt', capture) }, [])
   const install = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null) }
   const openAuth = async () => { if (userEmail) { await signOut(); return }; setAuthOpen(true) }
-  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={navigate} canInstall={Boolean(installPrompt)} onInstall={install} userEmail={userEmail} onAuth={openAuth} />{view === 'home' ? <HomeScreen setView={navigate} /> : view === 'alerts' ? <AlertsScreen setView={navigate} /> : view === 'report' ? <ReportScreen setView={navigate} /> : <FormScreen type={view} setView={navigate} />}<BottomNav view={view} setView={navigate} /></div>{authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}</div>
+  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={navigate} canInstall={Boolean(installPrompt)} onInstall={install} userEmail={userEmail} onAuth={openAuth} />{view === 'overview' ? <OverviewScreen setView={navigate} onMember={openAuth} /> : view === 'home' ? <HomeScreen setView={navigate} /> : view === 'alerts' ? <AlertsScreen setView={navigate} /> : view === 'report' ? <ReportScreen setView={navigate} /> : <FormScreen type={view} setView={navigate} />}<BottomNav view={view} setView={navigate} /></div>{authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}</div>
 }

@@ -17,6 +17,12 @@ export async function signOut() {
   if (error) throw error
 }
 
+export async function signInWithProvider(provider: 'google' | 'facebook') {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
+  if (error) throw error
+}
+
 export async function submitScamReport(entityType: 'gcash' | 'maya' | 'bank' | 'phone' | 'url' | 'social', entityValue: string, narrative: string) {
   if (!supabase) throw new Error('Report submission is not configured yet.')
   const { data: { user } } = await supabase.auth.getUser()
