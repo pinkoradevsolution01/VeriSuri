@@ -15,3 +15,5 @@ text,label,language,source,consent_reference
 - `source` and `consent_reference` document authorization and auditability.
 
 Run `py backend/train.py backend/data/approved_messages.csv --version verisuri-hybrid-v1` only after data approval. Review the generated metrics before replacing a deployed model.
+
+For a pipeline smoke test only, run `py backend/generate_demo_dataset.py` and train against `backend/data/synthetic_demo_messages.csv`. This synthetic output is intentionally excluded from Git and must never be registered or deployed as a production model.
