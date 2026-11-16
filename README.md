@@ -1,0 +1,32 @@
+# VeriSuri
+
+Philippine-focused PWA scam prevention. It uses a local Python/scikit-learn hybrid engine and does not send messages to Gemini or OpenAI.
+
+## Local development
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
+
+In a second terminal:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+For split local development, make `.env.local` with `VITE_API_BASE_URL=http://localhost:8000/api/v1`.
+
+## Setup
+
+1. Apply [schema.sql](supabase/schema.sql) in the Supabase SQL editor.
+2. Put `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `GOOGLE_WEB_RISK_API_KEY` in Vercel server environment variables only—never client `VITE_` variables.
+3. Train `backend/train.py` only on permissioned labelled Filipino, English, and Taglish messages. Model artifacts are deliberately ignored by Git.
+4. Before production report intake, add Supabase Auth session validation, rate limiting, malware scanning, and signed evidence uploads.
+
+## Delivery status
+
+The MVP foundations are implemented: app UI, FastAPI endpoint contract, local rule engine, trainable scikit-learn model pipeline, Web Risk integration boundary, report-match repository, Supabase schema/RLS, and Vercel configuration. Evidence vault, Scam DNA, map, web push, ONNX, and transformer features remain separately scoped Phase 2–4 work.

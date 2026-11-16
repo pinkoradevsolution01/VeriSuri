@@ -1,0 +1,10 @@
+{
+  "name": "VeriSuri — Philippine Anti-Scam Protection",
+  "short_name": "VeriSuri",
+  "description": "Check before you pay.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#031d2b",
+  "theme_color": "#00e8ed",
+  "icons": []
+}

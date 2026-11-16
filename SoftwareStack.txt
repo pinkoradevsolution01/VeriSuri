@@ -1,0 +1,87 @@
+VeriSuri is running locally.
+- PWA: http://127.0.0.1:5173/
+- FastAPI API: http://127.0.0.1:8000/api/docs
+-
+
+VeriSuri will be a Philippine-focused, PWA AI-powered fraud prevention PWA for iOS, Android, and desktop, built around our flagship feature: “Check Before You Pay.”
+
+We'll use our own Python-trained scam detection model instead of Gemini or OpenAI APIs, retain your existing Vercel hosting, and use free/open-source tools wherever practical.
+
+****** SOFTWARE STACK*************************
+1. Frontend: React + TypeScript + Vite + Tailwind
+
+Mobile: Installable PWA for iOS and Android
+
+Backend: Python + FastAPI
+
+AI: Custom scikit-learn hybrid scam detection engine
+
+Database: Supabase PostgreSQL
+
+Hosting: Vercel
+
+Threat Intelligence: Google Web Risk + moderated community data
+
+Long-term AI: Multilingual Transformers + ONNX offline inference
+****************************************************
+2. Final AI detection software
+We should develop our own AI in two stages.
+MVP
+VeriSuri AI Engine V1 — Lightweight Hybrid Model
+
+Python, scikit-learn, character-level TF-IDF, Logistic Regression, and a separate fraud-indicator rule engine.
+
+Train on permissioned, labeled legitimate and scam messages in Filipino, English, and Taglish. Deploy the model using FastAPI.
+
+3. Feature-to-technology mapping
+VeriSuri feature	                    Main technology	                                Release
+AI Message Analysis        	        Python + scikit-learn	                              MVP
+Suspicious Link Checker	            Google Web Risk + Python rules	                      MVP
+Before You Pay	                    FastAPI + AI + report matching	                      MVP
+GCash/Maya/Bank Report Lookup	    Supabase + restricted matching	                      MVP
+Report a Scam	                    React + Supabase Storage	                          MVP
+Admin Report Moderation	            React + role-based access controls	                  MVP
+Fraud Recovery Evidence Vault	    Private storage + PDF generation	                Phase 2
+Scam DNA	                        PostgreSQL relationships + similarity search	    Phase 2
+Philippine Scam Intelligence Map	Leaflet + aggregate reporting	                    Phase 3
+Regional Fraud Alerts	            Web Push + scheduled processing	                    Phase 3
+Offline AI Screening	            ONNX Runtime Web	                                Phase 3
+Advanced Multilingual AI	        PyTorch + Transformers	                            Phase 4
+
+4. Database structure
+Our final initial database should contain these core tables.
+Table	                                Purpose
+profiles	                    User information and roles
+scan_results	                Optional saved scam assessments
+scam_reports	                Community-submitted reports
+report_evidence	                Private attachments
+reported_entities	            Reported URLs, payment identifiers, and other indicators
+fraud_cases	                    Victim recovery case management
+fraud_alerts	                Published scam advisories
+moderation_actions	            Reviewer decisions and appeals
+model_versions	                AI model versions and evaluation records
+audit_logs	                    Sensitive administrative activity
+Later, introduce entity_relationships, message_embeddings, and regional_statistics for advanced Scam DNA and geographic intelligence.
+
+Use database Row-Level Security and strict access controls. Keep Supabase secret keys server-side, because those can bypass Row-Level Security. 
+
+5. Recommended development sequence
+01  Foundation
+    React PWA, professional VeriSuri UI, Vercel, Supabase Auth
+
+02  AI Engine
+    Collect labeled messages, train the Python model, deploy FastAPI
+
+03  Before You Pay
+    Connect payment checks, message analysis and URL reputation
+
+04  Community Reporting
+    Private evidence, scam reports and moderator dashboard
+
+05  Recovery & Intelligence
+    Evidence Vault, Scam DNA, report relationship analysis
+
+06  Nationwide Expansion
+    Regional alerts, aggregated map, enhanced multilingual and offline AI
+
+
