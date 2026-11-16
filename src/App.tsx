@@ -9,6 +9,12 @@ import { isSupabaseConfigured, submitScamReport } from './lib/supabase'
 
 type View = 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'alerts'
 
+const validViews = new Set<View>(['home', 'pay', 'message', 'link', 'reports', 'report', 'alerts'])
+const viewFromHash = (): View => {
+  const candidate = window.location.hash.replace('#/', '').replace('#', '') as View
+  return validViews.has(candidate) ? candidate : 'home'
+}
+
 const features: { id: View; title: string; caption: string; icon: typeof ShieldCheck }[] = [
   { id: 'pay', title: 'Before You Pay', caption: 'Check a payment request', icon: ShieldCheck },
   { id: 'message', title: 'AI Message Analysis', caption: 'Analyze suspicious messages', icon: MessageSquareText },
@@ -121,8 +127,9 @@ function BottomNav({ view, setView }: { view: View; setView: (view: View) => voi
 }
 
 export default function App() {
-  const [view, setView] = useState<View>('home')
-  const navigate = (next: View) => { setView(next); window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' })) }
+  const [view, setView] = useState<View>(viewFromHash)
+  useEffect(() => { const syncRoute = () => { setView(viewFromHash()); window.scrollTo({ top: 0, behavior: 'smooth' }) }; window.addEventListener('hashchange', syncRoute); return () => window.removeEventListener('hashchange', syncRoute) }, [])
+  const navigate = (next: View) => { const target = `#/${next}`; if (window.location.hash === target) { setView(next); window.scrollTo({ top: 0, behavior: 'smooth' }) } else window.location.hash = target }
   const [installPrompt, setInstallPrompt] = useState<{ prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> } | null>(null)
   useEffect(() => { const capture = (event: Event) => { event.preventDefault(); setInstallPrompt(event as unknown as { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) }; window.addEventListener('beforeinstallprompt', capture); return () => window.removeEventListener('beforeinstallprompt', capture) }, [])
   const install = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null) }
