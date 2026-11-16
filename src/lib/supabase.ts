@@ -5,6 +5,18 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = url && key ? createClient(url, key) : null
 export const isSupabaseConfigured = Boolean(supabase)
 
+export async function sendMagicLink(email: string) {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+  if (error) throw error
+}
+
+export async function signOut() {
+  if (!supabase) return
+  const { error } = await supabase.auth.signOut()
+  if (error) throw error
+}
+
 export async function submitScamReport(entityType: 'gcash' | 'maya' | 'bank' | 'phone' | 'url' | 'social', entityValue: string, narrative: string) {
   if (!supabase) throw new Error('Report submission is not configured yet.')
   const { data: { user } } = await supabase.auth.getUser()

@@ -5,7 +5,7 @@ import {
   ShieldCheck, TriangleAlert
 } from 'lucide-react'
 import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
-import { isSupabaseConfigured, submitScamReport } from './lib/supabase'
+import { isSupabaseConfigured, sendMagicLink, signOut, submitScamReport, supabase } from './lib/supabase'
 
 type View = 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'alerts'
 
@@ -39,7 +39,7 @@ function RiskCard({ title = 'Safe to Pay', subtle = 'No scam reports found for t
   </div>
 }
 
-function Header({ view, setView, canInstall, onInstall }: { view: View; setView: (view: View) => void; canInstall: boolean; onInstall: () => void }) {
+function Header({ view, setView, canInstall, onInstall, userEmail, onAuth }: { view: View; setView: (view: View) => void; canInstall: boolean; onInstall: () => void; userEmail: string | null; onAuth: () => void }) {
   return <header>
     <button className="brand-button" onClick={() => setView('home')} aria-label="VeriSuri home"><Brand compact /></button>
     <nav className="desktop-nav" aria-label="Main navigation">
@@ -49,8 +49,15 @@ function Header({ view, setView, canInstall, onInstall }: { view: View; setView:
       <button onClick={() => setView('report')}>Report incident</button>
     </nav>
     {canInstall && <button className="install-action" onClick={onInstall}><Download size={17} /> Install</button>}
+    <button className="auth-button" onClick={onAuth}>{userEmail ? 'Sign out' : 'Sign in'}</button>
     <button className="alert-button" onClick={() => setView('alerts')} aria-label="Open safety alerts"><Bell size={20} /></button>
   </header>
+}
+
+function AuthDialog({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState(''); const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false)
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setLoading(true); setNotice(''); try { await sendMagicLink(email); setNotice('Check your email for the VeriSuri sign-in link.') } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not send the sign-in link.') } finally { setLoading(false) } }
+  return <div className="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title"><section className="auth-dialog"><button className="dialog-close" onClick={onClose} aria-label="Close sign in">×</button><ShieldCheck /><h2 id="auth-title">Sign in to VeriSuri</h2><p>Use a magic link to submit and manage your scam reports securely.</p>{isSupabaseConfigured ? <form onSubmit={submit}><label htmlFor="auth-email">Email address</label><input id="auth-email" type="email" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com" /><button className="primary-action" disabled={loading}>{loading ? 'Sending…' : 'Send sign-in link'}</button></form> : <p className="form-error">Supabase authentication is not configured.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}</section></div>
 }
 
 function HomeScreen({ setView }: { setView: (view: View) => void }) {
@@ -128,10 +135,14 @@ function BottomNav({ view, setView }: { view: View; setView: (view: View) => voi
 
 export default function App() {
   const [view, setView] = useState<View>(viewFromHash)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [authOpen, setAuthOpen] = useState(false)
+  useEffect(() => { if (!supabase) return; supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null)); const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUserEmail(session?.user.email ?? null)); return () => subscription.unsubscribe() }, [])
   useEffect(() => { const syncRoute = () => { setView(viewFromHash()); window.scrollTo({ top: 0, behavior: 'smooth' }) }; window.addEventListener('hashchange', syncRoute); return () => window.removeEventListener('hashchange', syncRoute) }, [])
   const navigate = (next: View) => { const target = `#/${next}`; if (window.location.hash === target) { setView(next); window.scrollTo({ top: 0, behavior: 'smooth' }) } else window.location.hash = target }
   const [installPrompt, setInstallPrompt] = useState<{ prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> } | null>(null)
   useEffect(() => { const capture = (event: Event) => { event.preventDefault(); setInstallPrompt(event as unknown as { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) }; window.addEventListener('beforeinstallprompt', capture); return () => window.removeEventListener('beforeinstallprompt', capture) }, [])
   const install = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null) }
-  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={navigate} canInstall={Boolean(installPrompt)} onInstall={install} />{view === 'home' ? <HomeScreen setView={navigate} /> : view === 'alerts' ? <AlertsScreen setView={navigate} /> : view === 'report' ? <ReportScreen setView={navigate} /> : <FormScreen type={view} setView={navigate} />}<BottomNav view={view} setView={navigate} /></div></div>
+  const openAuth = async () => { if (userEmail) { await signOut(); return }; setAuthOpen(true) }
+  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={navigate} canInstall={Boolean(installPrompt)} onInstall={install} userEmail={userEmail} onAuth={openAuth} />{view === 'home' ? <HomeScreen setView={navigate} /> : view === 'alerts' ? <AlertsScreen setView={navigate} /> : view === 'report' ? <ReportScreen setView={navigate} /> : <FormScreen type={view} setView={navigate} />}<BottomNav view={view} setView={navigate} /></div>{authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}</div>
 }
