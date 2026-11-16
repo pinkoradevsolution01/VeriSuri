@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     free_web_risk_monthly_budget: int = 100000
     phishtank_app_key: str | None = None
     threat_feed_refresh_minutes: int = 60
+    enable_phishdestroy: bool = True
+    phishdestroy_cache_minutes: int = 15
+    phishdestroy_requests_per_minute: int = 30
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 

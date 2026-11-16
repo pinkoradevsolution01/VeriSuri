@@ -55,13 +55,14 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 
 ### Zero-fee starting architecture
 
-VeriSuri starts every URL assessment with local Python rules and two server-side threat feeds:
+VeriSuri starts every URL assessment with local Python rules and two server-side threat sources:
 
+- **PhishDestroy CTI:** the default live domain-reputation check. No key is required. VeriSuri sends only the normalized hostname, caches each result for 15 minutes, and applies a server-wide 30-request-per-minute ceiling before calling the public API. Attribute it as `PhishDestroy CTI, https://phishdestroy.io, accessed YYYY-MM-DD` in public product materials.
 - **CERT Polska Warning List:** requires no key. Its active-domain feed is refreshed in memory by FastAPI.
-- **PhishTank:** create a free application key for automatic downloads, then set `PHISHTANK_APP_KEY` in local `.env` and Vercel server variables. VeriSuri consumes its verified-online feed, not unverified public submissions.
+- **PhishTank (optional):** if legitimate new registrations become available, set `PHISHTANK_APP_KEY` for its verified-online feed. VeriSuri does not require it.
 - **Python detection engine:** detects URL structure, lookalike financial brands, suspicious domain endings, credential lures, and other explainable signals.
 
-The browser never calls either feed directly. Feed matches are evidence only; a no-match result is not a safety guarantee. `THREAT_FEED_REFRESH_MINUTES=60` controls the in-memory refresh interval. Do not put `PHISHTANK_APP_KEY` in a Vite variable.
+The browser never calls any feed directly. Feed matches are evidence only; a no-match result is not a safety guarantee. `THREAT_FEED_REFRESH_MINUTES=60` controls the CERT Polska and optional PhishTank refresh interval. Do not put `PHISHTANK_APP_KEY` in a Vite variable.
 
 Google Web Risk remains integrated but is disabled by default. Set `ENABLE_GOOGLE_WEB_RISK=true` only after its billing account is active; this preserves the existing quota and abuse-protection logic for a future commercial release.
 
