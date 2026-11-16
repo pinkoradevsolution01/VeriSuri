@@ -36,18 +36,24 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
         if not user_id:
             signals.append("Sign in to use subscription URL scans; local URL rules were used")
         else:
-            quota = await repository.consume_web_risk_quota(user_id)
-            if quota is None:
-                signals.append("URL-scan quota service is unavailable; local URL rules were used")
-            elif not quota.allowed:
-                signals.append(f"{quota.reason}. Local URL rules were used")
+            authorization = await repository.authorize_web_risk_scan(user_id, payload.url)
+            if authorization is None:
+                signals.append("URL-scan safety service is unavailable; local URL rules were used")
+            elif not authorization.allowed:
+                signals.append(f"{authorization.reason}. Local URL rules were used")
             else:
-                unsafe, threat_types = await web_risk.lookup(payload.url)
-                if unsafe is None:
-                    signals.append("Google Web Risk is unavailable; local URL rules were used")
+                quota = await repository.consume_web_risk_quota(user_id)
+                if quota is None:
+                    signals.append("URL-scan quota service is unavailable; local URL rules were used")
+                elif not quota.allowed:
+                    signals.append(f"{quota.reason}. Local URL rules were used")
                 else:
-                    source = "google-web-risk+url-rules"
-                    signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
+                    unsafe, threat_types = await web_risk.lookup(payload.url)
+                    if unsafe is None:
+                        signals.append("Google Web Risk is unavailable; local URL rules were used")
+                    else:
+                        source = "google-web-risk+url-rules"
+                        signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
     return build_assessment(score, signals, detector.version, source)
 

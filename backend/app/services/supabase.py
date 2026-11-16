@@ -13,6 +13,11 @@ class WebRiskQuota:
     remaining_today: int
     reason: str
 
+@dataclass(frozen=True)
+class WebRiskAuthorization:
+    allowed: bool
+    reason: str
+
 class SupabaseRepository:
     def __init__(self) -> None:
         config = get_settings(); self.url = config.supabase_url; self.key = config.supabase_service_role_key
@@ -56,6 +61,20 @@ class SupabaseRepository:
                     allowed=bool(row["allowed"]), plan=str(row["plan"]), daily_limit=int(row["daily_limit"]),
                     used_today=int(row["used_today"]), remaining_today=int(row["remaining_today"]), reason=str(row["reason"]),
                 )
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return None
+
+    async def authorize_web_risk_scan(self, user_id: str, url: str) -> WebRiskAuthorization | None:
+        if not self.enabled:
+            return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        payload = {"p_user_id": user_id, "p_url_hash": self.identifier_hash(url)}
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                response = await client.post(f"{self.url}/rest/v1/rpc/authorize_web_risk_scan", headers=headers, json=payload)
+                response.raise_for_status()
+                row = response.json(); row = row[0] if isinstance(row, list) else row
+                return WebRiskAuthorization(allowed=bool(row["allowed"]), reason=str(row["reason"]))
         except (httpx.HTTPError, KeyError, TypeError, ValueError):
             return None
 

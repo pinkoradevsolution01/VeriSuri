@@ -31,9 +31,9 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 
 ## Subscription plans and URL-scan allocation
 
-1. Apply [20261117_subscription_and_url_quotas.sql](supabase/migrations/20261117_subscription_and_url_quotas.sql) after the earlier Supabase migrations.
+1. Apply [20261117_subscription_and_url_quotas.sql](supabase/migrations/20261117_subscription_and_url_quotas.sql), then [20261117_url_scan_abuse_protection.sql](supabase/migrations/20261117_url_scan_abuse_protection.sql), after the earlier Supabase migrations.
 2. Set `FREE_WEB_RISK_MONTHLY_BUDGET=100000` in local `.env` and Vercel server variables. It is a configurable product allocation, not a replacement for Google Cloud billing controls.
-3. Free is **₱0/month**. A signed-in Free member can receive up to three Google Web Risk URL checks per Philippine calendar day. The backend recalculates the actual cap atomically from the allocation left, active Free members, and days left in the month; it can fall below three, including zero, rather than exceeding the allocation.
+3. Free is **₱0/month**. A signed-in Free member can receive up to fifteen Google Web Risk URL checks per Philippine calendar day. The backend recalculates the actual cap atomically from the allocation left, active Free members, and days left in the month; it can fall below fifteen, including zero, rather than exceeding the allocation. Repeated URLs do not use another Google lookup; three unique URLs in five minutes pauses Google lookups for thirty minutes while local rules remain available.
 4. Pro is **₱79/month** with a 30-check daily allowance after verified payment. Premium is **₱149/month** with a 100-check daily allowance after verified payment.
 5. Selecting Pro or Premium records a payment request only. It does not activate a paid allowance until a future payment-provider webhook verifies payment. Do not bypass this with browser-side updates.
 
