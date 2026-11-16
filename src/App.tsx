@@ -122,8 +122,9 @@ function BottomNav({ view, setView }: { view: View; setView: (view: View) => voi
 
 export default function App() {
   const [view, setView] = useState<View>('home')
+  const navigate = (next: View) => { setView(next); window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' })) }
   const [installPrompt, setInstallPrompt] = useState<{ prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> } | null>(null)
   useEffect(() => { const capture = (event: Event) => { event.preventDefault(); setInstallPrompt(event as unknown as { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) }; window.addEventListener('beforeinstallprompt', capture); return () => window.removeEventListener('beforeinstallprompt', capture) }, [])
   const install = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null) }
-  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={setView} canInstall={Boolean(installPrompt)} onInstall={install} />{view === 'home' ? <HomeScreen setView={setView} /> : view === 'alerts' ? <AlertsScreen setView={setView} /> : view === 'report' ? <ReportScreen setView={setView} /> : <FormScreen type={view} setView={setView} />}<BottomNav view={view} setView={setView} /></div></div>
+  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={navigate} canInstall={Boolean(installPrompt)} onInstall={install} />{view === 'home' ? <HomeScreen setView={navigate} /> : view === 'alerts' ? <AlertsScreen setView={navigate} /> : view === 'report' ? <ReportScreen setView={navigate} /> : <FormScreen type={view} setView={navigate} />}<BottomNav view={view} setView={navigate} /></div></div>
 }
