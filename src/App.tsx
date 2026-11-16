@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Bell, ChevronRight, CircleHelp, ClipboardList,
-  Flag, Home, Link2, MessageSquareText, Search, Shield, ShieldAlert,
+  Download, Flag, Home, Link2, MessageSquareText, Search, Shield, ShieldAlert,
   ShieldCheck, TriangleAlert
 } from 'lucide-react'
-import { analyzeFeature, type Assessment } from './lib/api'
+import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
+import { isSupabaseConfigured, submitScamReport } from './lib/supabase'
 
-type View = 'home' | 'pay' | 'message' | 'link' | 'reports' | 'alerts'
+type View = 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'alerts'
 
 const features: { id: View; title: string; caption: string; icon: typeof ShieldCheck }[] = [
   { id: 'pay', title: 'Before You Pay', caption: 'Check a payment request', icon: ShieldCheck },
@@ -32,14 +33,16 @@ function RiskCard({ title = 'Safe to Pay', subtle = 'No scam reports found for t
   </div>
 }
 
-function Header({ view, setView }: { view: View; setView: (view: View) => void }) {
+function Header({ view, setView, canInstall, onInstall }: { view: View; setView: (view: View) => void; canInstall: boolean; onInstall: () => void }) {
   return <header>
     <button className="brand-button" onClick={() => setView('home')} aria-label="VeriSuri home"><Brand compact /></button>
     <nav className="desktop-nav" aria-label="Main navigation">
       <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>Dashboard</button>
       <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Report lookup</button>
       <button className={view === 'alerts' ? 'active' : ''} onClick={() => setView('alerts')}>Safety alerts</button>
+      <button onClick={() => setView('report')}>Report incident</button>
     </nav>
+    {canInstall && <button className="install-action" onClick={onInstall}><Download size={17} /> Install</button>}
     <button className="alert-button" onClick={() => setView('alerts')} aria-label="Open safety alerts"><Bell size={20} /></button>
   </header>
 }
@@ -60,7 +63,7 @@ function HomeScreen({ setView }: { setView: (view: View) => void }) {
   </main>
 }
 
-function FormScreen({ type, setView }: { type: Exclude<View, 'home' | 'alerts'>; setView: (view: View) => void }) {
+function FormScreen({ type, setView }: { type: Exclude<View, 'home' | 'alerts' | 'report'>; setView: (view: View) => void }) {
   const [value, setValue] = useState('')
   const [choice, setChoice] = useState('gcash')
   const [checked, setChecked] = useState(false)
@@ -99,6 +102,13 @@ function FormScreen({ type, setView }: { type: Exclude<View, 'home' | 'alerts'>;
   </main>
 }
 
+function ReportScreen({ setView }: { setView: (view: View) => void }) {
+  const [entityType, setEntityType] = useState<'gcash' | 'maya' | 'bank' | 'phone' | 'url' | 'social'>('gcash')
+  const [entityValue, setEntityValue] = useState(''); const [narrative, setNarrative] = useState(''); const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false)
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setNotice(''); if (entityValue.trim().length < 3 || narrative.trim().length < 20) { setNotice('Provide an identifier and at least 20 characters of incident detail.'); return }; setLoading(true); try { await submitScamReport(entityType, entityValue, narrative); setNotice('Report submitted for moderation. Thank you for helping protect others.'); setEntityValue(''); setNarrative('') } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to submit your report.') } finally { setLoading(false) } }
+  return <main className="screen tool-screen"><button className="back" onClick={() => setView('home')}>← <span>Back to dashboard</span></button><div className="tool-heading"><span className="tool-icon"><Flag /></span><h1>Report a scam</h1><p>Reports are private and reviewed before they affect community matching results.</p></div><section className="check-panel"><form onSubmit={submit}><div className="type-tabs">{(['gcash','maya','bank','phone','url'] as const).map(item => <button type="button" key={item} className={entityType === item ? 'active' : ''} onClick={() => setEntityType(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div><label className="input-label" htmlFor="report-entity">Reported identifier</label><div className="field"><textarea id="report-entity" rows={1} value={entityValue} onChange={event => setEntityValue(event.target.value)} placeholder="Account, phone number, profile, or link" /></div><label className="input-label" htmlFor="report-details">What happened?</label><div className="field message-field"><textarea id="report-details" rows={6} value={narrative} onChange={event => setNarrative(event.target.value)} placeholder="Describe the scam. Do not include OTPs, passwords, or full account details." /></div><button className="primary-action" disabled={loading || !isSupabaseConfigured}>{loading ? 'Submitting…' : 'Submit for review'} <ChevronRight size={19} /></button>{!isSupabaseConfigured && <p className="form-error">Report submission needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}</form></section></main>
+}
+
 function AlertsScreen({ setView }: { setView: (view: View) => void }) {
   return <main className="screen tool-screen alerts-screen"><button className="back" onClick={() => setView('home')}>← <span>Back to dashboard</span></button><div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Moderated scam advisories and important safety updates for the Philippines.</p></div><section className="alert-list">{alerts.map(([title, copy, time, kind]) => <article key={title} className={`alert-item ${kind}`}><span>{kind === 'danger' ? <TriangleAlert /> : kind === 'warning' ? <TriangleAlert /> : <CircleHelp />}</span><div><h3>{title}</h3><p>{copy}</p><small>{time}</small></div><ChevronRight size={18} /></article>)}</section></main>
 }
@@ -109,5 +119,8 @@ function BottomNav({ view, setView }: { view: View; setView: (view: View) => voi
 
 export default function App() {
   const [view, setView] = useState<View>('home')
-  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={setView} />{view === 'home' ? <HomeScreen setView={setView} /> : view === 'alerts' ? <AlertsScreen setView={setView} /> : <FormScreen type={view} setView={setView} />}<BottomNav view={view} setView={setView} /></div></div>
+  const [installPrompt, setInstallPrompt] = useState<{ prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> } | null>(null)
+  useEffect(() => { const capture = (event: Event) => { event.preventDefault(); setInstallPrompt(event as unknown as { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) }; window.addEventListener('beforeinstallprompt', capture); return () => window.removeEventListener('beforeinstallprompt', capture) }, [])
+  const install = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null) }
+  return <div className="app-shell antialiased"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="app-canvas"><Header view={view} setView={setView} canInstall={Boolean(installPrompt)} onInstall={install} />{view === 'home' ? <HomeScreen setView={setView} /> : view === 'alerts' ? <AlertsScreen setView={setView} /> : view === 'report' ? <ReportScreen setView={setView} /> : <FormScreen type={view} setView={setView} />}<BottomNav view={view} setView={setView} /></div></div>
 }

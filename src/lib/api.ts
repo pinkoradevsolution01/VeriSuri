@@ -9,6 +9,7 @@ export type Assessment = {
   engine_version: string
   source: string
 }
+export type Alert = { id: string; title: string; summary: string; severity: RiskLevel; published_at: string }
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
@@ -26,4 +27,10 @@ export function analyzeFeature(feature: 'pay' | 'message' | 'link' | 'reports', 
   if (feature === 'link') return post('/analyze/link', { url: value })
   if (feature === 'reports') return post('/reports/lookup', { identifier: value, entity_type: entityType })
   return post('/check/payment', { identifier: value, provider: entityType })
+}
+
+export async function getAlerts(): Promise<Alert[]> {
+  const response = await fetch(`${baseUrl}/alerts`)
+  if (!response.ok) throw new Error('Alerts are unavailable.')
+  return response.json() as Promise<Alert[]>
 }

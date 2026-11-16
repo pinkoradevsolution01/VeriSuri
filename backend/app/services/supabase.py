@@ -16,3 +16,11 @@ class SupabaseRepository:
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(f"{self.url}/rest/v1/reported_entities", headers=headers, params=params); response.raise_for_status()
             return int(response.headers.get("content-range", "*/0").split("/")[-1])
+
+    async def published_alerts(self) -> list[dict] | None:
+        if not self.enabled: return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        params = {"select": "id,title,summary,severity,published_at", "published": "eq.true", "order": "published_at.desc", "limit": "20"}
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(f"{self.url}/rest/v1/fraud_alerts", headers=headers, params=params); response.raise_for_status()
+            return response.json()

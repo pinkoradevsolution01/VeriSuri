@@ -43,4 +43,7 @@ async def create_report(payload: ScamReportCreate) -> dict[str, str]:
 
 @app.get("/api/v1/alerts", response_model=list[AlertItem])
 async def alerts() -> list[AlertItem]:
+    live = await repository.published_alerts()
+    if live is not None:
+        return live
     return [AlertItem(id="sample-gcash", title="New GCash phishing alert", summary="Verify account notices only in the official GCash app.", severity="high", published_at="2026-11-16T00:00:00Z"), AlertItem(id="sample-bpi", title="Bank impersonation scam", summary="Do not provide OTPs in response to unsolicited messages.", severity="medium", published_at="2026-11-15T00:00:00Z")]
