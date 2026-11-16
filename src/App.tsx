@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import {
   Bell, CheckCircle2, ChevronRight, CircleHelp, ClipboardList,
   Download, Flag, Home, Link2, MessageSquareText, Search, Shield, ShieldAlert,
@@ -32,10 +32,12 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return <div className="brand"><span className="brand-mark"><ShieldCheck size={compact ? 22 : 27} /></span><span>Veri<span>Suri</span></span></div>
 }
 
-function RiskCard({ title = 'Safe to Pay', subtle = 'No scam reports found for this account in our database.', danger = false }: { title?: string; subtle?: string; danger?: boolean }) {
+function RiskCard({ title = 'Safe to Pay', subtle = 'No scam reports found for this account in our database.', danger = false, score }: { title?: string; subtle?: string; danger?: boolean; score?: number }) {
+  const scoreTone = typeof score === 'number' ? score >= 65 ? 'high' : score >= 30 ? 'medium' : 'low' : 'low'
   return <div className={`risk-card ${danger ? 'risk-danger' : ''}`}>
     {danger ? <ShieldAlert size={34} /> : <ShieldCheck size={34} />}
     <div><strong>{title}</strong><p>{subtle}</p></div>
+    {typeof score === 'number' && <div className={`score-meter score-${scoreTone}`} aria-label={`Risk score ${score} out of 100`}><div className="score-ring" style={{ '--score': score } as CSSProperties & { '--score': number }}><b>{score}</b><small>/100</small></div><span>Risk score</span></div>}
   </div>
 }
 
@@ -115,7 +117,7 @@ function FormScreen({ type, setView }: { type: Exclude<View, 'overview' | 'home'
     <div className={`field ${type === 'message' ? 'message-field' : ''}`}><textarea rows={type === 'message' ? 5 : 1} value={value} onChange={e => setValue(e.target.value)} placeholder={content.placeholder} /><button aria-label="Analyze" onClick={runAssessment} disabled={loading}><Search /></button></div>
     <button className="primary-action" onClick={runAssessment} disabled={loading}>{loading ? 'Checking…' : type === 'link' ? 'Check Link' : type === 'message' ? 'Analyze Message' : type === 'reports' ? 'Search Reports' : 'Check Now'} <ChevronRight size={19} /></button>
     {error && <p className="form-error">{error}</p>}
-    {checked && <><RiskCard title={result.verdict} subtle={result.summary} danger={assessment ? assessment.level === 'high' : danger} />
+    {checked && <><RiskCard title={result.verdict} subtle={result.summary} danger={assessment ? assessment.level === 'high' : danger} score={assessment?.score} />
       {result.signals.length > 0 && <div className="signal-list"><h3>Detected warning signs</h3>{result.signals.map(signal => <p key={signal}><TriangleAlert /> {signal}</p>)}</div>}
       {!danger && <div className="safe-stats"><span>Account Type<b>{choice === 'gcash' ? 'GCash' : choice === 'maya' ? 'Maya' : 'Bank'} Account</b></span><span>Community Reports<b>0</b></span><span>Last Checked<b>Just now</b></span></div>}
     </>}
