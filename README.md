@@ -23,9 +23,18 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 ## Setup
 
 1. Apply [schema.sql](supabase/schema.sql) in the Supabase SQL editor.
-2. Put `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `GOOGLE_WEB_RISK_API_KEY` in Vercel server environment variables only—never client `VITE_` variables.
-3. Train `backend/train.py` only on permissioned labelled Filipino, English, and Taglish messages. Model artifacts are deliberately ignored by Git.
-4. Before production report intake, add Supabase Auth session validation, rate limiting, malware scanning, and signed evidence uploads.
+2. Apply [20261116_production_readiness.sql](supabase/migrations/20261116_production_readiness.sql) immediately after it. This installs the consent-recording, profile, moderation, and deletion-request workflow used by the PWA.
+3. Put `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `GOOGLE_WEB_RISK_API_KEY` in Vercel server environment variables only—never client `VITE_` variables.
+4. Train `backend/train.py` only on permissioned labelled Filipino, English, and Taglish messages. Model artifacts are deliberately ignored by Git.
+5. Configure Google/Facebook Auth redirect URLs in Supabase, appoint moderators, and assign each moderator or admin a role in `public.profiles`.
+6. Before public production intake, complete the organization privacy notice with a DPO contact, obtain legal/privacy review, add rate limiting, malware scanning, and signed evidence uploads.
+
+## Permissioned data workflow
+
+- A normal scam report does **not** authorize model training.
+- A contributor must separately opt in and provide a redacted sample. It enters `training_examples` as `pending`.
+- A moderator must confirm the underlying report and approve the sample before it becomes eligible for offline export and model evaluation.
+- A deletion request immediately withdraws pending opted-in samples; a privacy reviewer must complete the request according to the organization retention policy.
 
 ## AI model workflow
 

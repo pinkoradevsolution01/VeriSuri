@@ -23,14 +23,69 @@ export async function signInWithProvider(provider: 'google' | 'facebook') {
   if (error) throw error
 }
 
-export async function submitScamReport(entityType: 'gcash' | 'maya' | 'bank' | 'phone' | 'url' | 'social', entityValue: string, narrative: string) {
+export type ReportEntityType = 'gcash' | 'maya' | 'bank' | 'phone' | 'url' | 'social'
+
+export type ReportSubmission = {
+  entityType: ReportEntityType
+  entityValue: string
+  narrative: string
+  privacyNoticeVersion: string
+  acknowledgesSafeSubmission: boolean
+  trainingConsent: boolean
+  redactedTrainingSample?: string
+}
+
+export type ModerationReport = {
+  id: string
+  narrative: string
+  created_at: string
+  privacy_notice_version: string
+  training_consent: boolean
+  reported_entities: { entity_type: ReportEntityType; entity_last4: string | null }[]
+  training_examples: { id: string; text_redacted: string; status: string }[]
+}
+
+export async function submitScamReport(submission: ReportSubmission) {
   if (!supabase) throw new Error('Report submission is not configured yet.')
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Please sign in before submitting a report.')
-  const { data: report, error } = await supabase.from('scam_reports').insert({ reporter_id: user.id, narrative }).select('id').single()
+  const { error } = await supabase.rpc('submit_scam_report', {
+    p_entity_type: submission.entityType,
+    p_entity_value: submission.entityValue.trim(),
+    p_narrative: submission.narrative.trim(),
+    p_privacy_notice_version: submission.privacyNoticeVersion,
+    p_acknowledged_safe_submission: submission.acknowledgesSafeSubmission,
+    p_training_consent: submission.trainingConsent,
+    p_redacted_training_sample: submission.trainingConsent ? submission.redactedTrainingSample?.trim() || null : null,
+  })
   if (error) throw error
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(entityValue.trim().toLowerCase()))
-  const entityHash = Array.from(new Uint8Array(hash)).map(byte => byte.toString(16).padStart(2, '0')).join('')
-  const { error: entityError } = await supabase.from('reported_entities').insert({ report_id: report.id, entity_type: entityType, entity_hash: entityHash, entity_last4: entityValue.slice(-4) })
-  if (entityError) throw entityError
+}
+
+export async function getModeratorQueue(): Promise<ModerationReport[]> {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { data, error } = await supabase
+    .from('scam_reports')
+    .select('id,narrative,created_at,privacy_notice_version,training_consent,reported_entities(entity_type,entity_last4),training_examples(id,text_redacted,status)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+    .limit(50)
+  if (error) throw error
+  return (data ?? []) as ModerationReport[]
+}
+
+export async function reviewScamReport(reportId: string, decision: 'confirmed' | 'rejected', reason: string, trainingStatus: 'approved' | 'rejected' | null = null) {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { error } = await supabase.rpc('review_scam_report', {
+    p_report_id: reportId,
+    p_status: decision,
+    p_reason: reason.trim() || null,
+    p_training_status: trainingStatus,
+  })
+  if (error) throw error
+}
+
+export async function requestDataDeletion() {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { error } = await supabase.rpc('request_privacy_deletion')
+  if (error) throw error
 }
