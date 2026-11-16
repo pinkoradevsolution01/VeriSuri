@@ -43,6 +43,19 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 3. Gate the result: `py backend/evaluate.py backend/models/verisuri_v1.metrics.json`.
 4. Register approved metrics: `py backend/register_model.py backend/models/verisuri_v1.metrics.json`.
 
+## Before You Pay: production configuration
+
+1. In Google Cloud, enable billing and the **Web Risk API** for the project that will run VeriSuri. Create an API key restricted to the Web Risk API. Keep it server-side only.
+2. Add `GOOGLE_WEB_RISK_API_KEY` to the local FastAPI `.env` for development and to Vercel's server environment variables for production. Do not add it to `.env.local` or any `VITE_` variable.
+3. Submit a real report through VeriSuri, sign in as an assigned moderator, and confirm the report. Only confirmed records can be returned by payment/report matching.
+4. Restart FastAPI, then validate the live integration using that confirmed identifier:
+
+```powershell
+.\.venv\Scripts\python.exe backend\validate_before_you_pay.py --identifier "THE-CONFIRMED-IDENTIFIER" --entity-type gcash
+```
+
+The validation command verifies both the confirmed Supabase match and, unless `--skip-web-risk` is supplied, Google's official Web Risk test-list URL. It never creates fake reports or inserts test intelligence.
+
 ## Delivery status
 
 The MVP foundations are implemented: app UI, FastAPI endpoint contract, local rule engine, trainable scikit-learn model pipeline, Web Risk integration boundary, report-match repository, Supabase schema/RLS, and Vercel configuration. Evidence vault, Scam DNA, map, web push, ONNX, and transformer features remain separately scoped Phase 2–4 work.

@@ -12,7 +12,13 @@ app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/do
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().origins, allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
 
 @app.get("/api/v1/health")
-async def health() -> dict[str, str]: return {"status": "ok", "engine": detector.version}
+async def health() -> dict[str, str | bool]:
+    return {
+        "status": "ok",
+        "engine": detector.version,
+        "web_risk_configured": web_risk.configured,
+        "supabase_report_matching_configured": repository.enabled,
+    }
 
 @app.post("/api/v1/analyze/message", response_model=Assessment)
 async def analyze_message(payload: MessageRequest) -> Assessment: return detector.analyze(payload.text)
