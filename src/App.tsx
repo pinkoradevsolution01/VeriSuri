@@ -110,7 +110,10 @@ function ReportScreen({ setView }: { setView: (view: View) => void }) {
 }
 
 function AlertsScreen({ setView }: { setView: (view: View) => void }) {
-  return <main className="screen tool-screen alerts-screen"><button className="back" onClick={() => setView('home')}>← <span>Back to dashboard</span></button><div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Moderated scam advisories and important safety updates for the Philippines.</p></div><section className="alert-list">{alerts.map(([title, copy, time, kind]) => <article key={title} className={`alert-item ${kind}`}><span>{kind === 'danger' ? <TriangleAlert /> : kind === 'warning' ? <TriangleAlert /> : <CircleHelp />}</span><div><h3>{title}</h3><p>{copy}</p><small>{time}</small></div><ChevronRight size={18} /></article>)}</section></main>
+  const [liveAlerts, setLiveAlerts] = useState<Alert[]>([])
+  useEffect(() => { getAlerts().then(setLiveAlerts).catch(() => undefined) }, [])
+  const alertFeed = liveAlerts.length ? liveAlerts.map(item => [item.title, item.summary, new Date(item.published_at).toLocaleDateString(), item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : 'info']) : alerts
+  return <main className="screen tool-screen alerts-screen"><button className="back" onClick={() => setView('home')}>← <span>Back to dashboard</span></button><div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Moderated scam advisories and important safety updates for the Philippines.</p></div><section className="alert-list">{alertFeed.map(([title, copy, time, kind]) => <article key={title} className={`alert-item ${kind}`}><span>{kind === 'danger' ? <TriangleAlert /> : kind === 'warning' ? <TriangleAlert /> : <CircleHelp />}</span><div><h3>{title}</h3><p>{copy}</p><small>{time}</small></div><ChevronRight size={18} /></article>)}</section></main>
 }
 
 function BottomNav({ view, setView }: { view: View; setView: (view: View) => void }) {
