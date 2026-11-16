@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 export type RiskLevel = 'low' | 'medium' | 'high'
 
 export type Assessment = {
@@ -14,7 +16,10 @@ export type Alert = { id: string; title: string; summary: string; severity: Risk
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 async function post<T>(path: string, body: Record<string, string>): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`
+  const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
   if (!response.ok) {
     const message = await response.json().catch(() => null)
     throw new Error(message?.detail ?? 'The protection service is unavailable. Please try again.')

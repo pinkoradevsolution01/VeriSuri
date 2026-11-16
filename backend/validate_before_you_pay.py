@@ -13,8 +13,8 @@ import sys
 import httpx
 
 
-async def get_json(client: httpx.AsyncClient, url: str, *, payload: dict | None = None) -> dict:
-    response = await (client.post(url, json=payload) if payload else client.get(url))
+async def get_json(client: httpx.AsyncClient, url: str, *, payload: dict | None = None, headers: dict[str, str] | None = None) -> dict:
+    response = await (client.post(url, json=payload, headers=headers) if payload else client.get(url, headers=headers))
     response.raise_for_status()
     return response.json()
 
@@ -24,6 +24,7 @@ async def main() -> int:
     parser.add_argument("--identifier", required=True, help="Identifier from a moderator-confirmed report")
     parser.add_argument("--entity-type", choices=["gcash", "maya", "bank", "phone", "url"], required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000/api/v1")
+    parser.add_argument("--access-token", help="Signed-in Supabase access token for a plan-authorized Web Risk check")
     parser.add_argument("--skip-web-risk", action="store_true", help="Skip the official Google Web Risk test URL")
     args = parser.parse_args()
 
@@ -46,7 +47,10 @@ async def main() -> int:
                 print("FAIL: GOOGLE_WEB_RISK_API_KEY is not configured.", file=sys.stderr)
                 return 1
             test_url = "http://testsafebrowsing.appspot.com/s/malware.html"
-            link = await get_json(client, f"{base}/analyze/link", payload={"url": test_url})
+            if not args.access_token:
+                print("FAIL: --access-token is required to validate an authenticated subscription URL scan.", file=sys.stderr)
+                return 1
+            link = await get_json(client, f"{base}/analyze/link", payload={"url": test_url}, headers={"Authorization": f"Bearer {args.access_token}"})
             print("Web Risk lookup:", link)
             if link.get("source") != "google-web-risk+url-rules" or not any("Google Web Risk matched" in signal for signal in link.get("signals", [])):
                 print("FAIL: Web Risk did not return the expected test-list match.", file=sys.stderr)

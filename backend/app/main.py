@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import get_settings
 from backend.app.schemas import AlertItem, Assessment, LinkRequest, MessageRequest, PaymentRequest, ReportLookupRequest, ScamReportCreate
@@ -24,12 +24,32 @@ async def health() -> dict[str, str | bool]:
 async def analyze_message(payload: MessageRequest) -> Assessment: return detector.analyze(payload.text)
 
 @app.post("/api/v1/analyze/link", response_model=Assessment)
-async def analyze_link(payload: LinkRequest) -> Assessment:
+async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     signals, score = url_signals(payload.url)
-    unsafe, threat_types = await web_risk.lookup(payload.url)
+    unsafe, threat_types = None, []
+    source = "url-rules"
+    if not web_risk.configured:
+        signals.append("Google Web Risk is not configured; local URL rules were used")
+    else:
+        token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        user_id = await repository.user_id_from_access_token(token)
+        if not user_id:
+            signals.append("Sign in to use subscription URL scans; local URL rules were used")
+        else:
+            quota = await repository.consume_web_risk_quota(user_id)
+            if quota is None:
+                signals.append("URL-scan quota service is unavailable; local URL rules were used")
+            elif not quota.allowed:
+                signals.append(f"{quota.reason}. Local URL rules were used")
+            else:
+                unsafe, threat_types = await web_risk.lookup(payload.url)
+                if unsafe is None:
+                    signals.append("Google Web Risk is unavailable; local URL rules were used")
+                else:
+                    source = "google-web-risk+url-rules"
+                    signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
-    elif unsafe is None: signals.append("Google Web Risk is unavailable; local URL rules were used")
-    return build_assessment(score, signals, detector.version, "google-web-risk+url-rules" if unsafe is not None else "url-rules")
+    return build_assessment(score, signals, detector.version, source)
 
 async def lookup_entity(identifier: str, entity_type: str) -> Assessment:
     count = await repository.report_count(entity_type, identifier)

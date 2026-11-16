@@ -1,6 +1,17 @@
 import hashlib
 import httpx
+from dataclasses import dataclass
 from backend.app.config import get_settings
+
+
+@dataclass(frozen=True)
+class WebRiskQuota:
+    allowed: bool
+    plan: str
+    daily_limit: int
+    used_today: int
+    remaining_today: int
+    reason: str
 
 class SupabaseRepository:
     def __init__(self) -> None:
@@ -16,6 +27,37 @@ class SupabaseRepository:
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(f"{self.url}/rest/v1/reported_entities", headers=headers, params=params); response.raise_for_status()
             return int(response.headers.get("content-range", "*/0").split("/")[-1])
+
+    async def user_id_from_access_token(self, access_token: str | None) -> str | None:
+        if not self.enabled or not access_token:
+            return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {access_token}"}
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self.url}/auth/v1/user", headers=headers)
+                if response.status_code != 200:
+                    return None
+                return response.json().get("id")
+        except httpx.HTTPError:
+            return None
+
+    async def consume_web_risk_quota(self, user_id: str) -> WebRiskQuota | None:
+        if not self.enabled:
+            return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ""}"}
+        payload = {"p_user_id": user_id, "p_free_monthly_budget": get_settings().free_web_risk_monthly_budget}
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                response = await client.post(f"{self.url}/rest/v1/rpc/consume_web_risk_quota", headers=headers, json=payload)
+                response.raise_for_status()
+                row = response.json()
+                row = row[0] if isinstance(row, list) else row
+                return WebRiskQuota(
+                    allowed=bool(row["allowed"]), plan=str(row["plan"]), daily_limit=int(row["daily_limit"]),
+                    used_today=int(row["used_today"]), remaining_today=int(row["remaining_today"]), reason=str(row["reason"]),
+                )
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return None
 
     async def published_alerts(self) -> list[dict] | None:
         if not self.enabled: return None

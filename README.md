@@ -29,6 +29,14 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 5. Configure Google/Facebook Auth redirect URLs in Supabase, appoint moderators, and assign each moderator or admin a role in `public.profiles`.
 6. Before public production intake, complete the organization privacy notice with a DPO contact, obtain legal/privacy review, add rate limiting, malware scanning, and signed evidence uploads.
 
+## Subscription plans and URL-scan allocation
+
+1. Apply [20261117_subscription_and_url_quotas.sql](supabase/migrations/20261117_subscription_and_url_quotas.sql) after the earlier Supabase migrations.
+2. Set `FREE_WEB_RISK_MONTHLY_BUDGET=100000` in local `.env` and Vercel server variables. It is a configurable product allocation, not a replacement for Google Cloud billing controls.
+3. Free is **₱0/month**. A signed-in Free member can receive up to five Google Web Risk URL checks per Philippine calendar day. The backend recalculates the actual cap atomically from the allocation left, active Free members, and days left in the month; it can fall below five, including zero, rather than exceeding the allocation.
+4. Pro is **₱79/month** with a 30-check daily allowance after verified payment. Premium is **₱149/month** with a 100-check daily allowance after verified payment.
+5. Selecting Pro or Premium records a payment request only. It does not activate a paid allowance until a future payment-provider webhook verifies payment. Do not bypass this with browser-side updates.
+
 ## Permissioned data workflow
 
 - A normal scam report does **not** authorize model training.
@@ -51,10 +59,10 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 4. Restart FastAPI, then validate the live integration using that confirmed identifier:
 
 ```powershell
-.\.venv\Scripts\python.exe backend\validate_before_you_pay.py --identifier "THE-CONFIRMED-IDENTIFIER" --entity-type gcash
+.\.venv\Scripts\python.exe backend\validate_before_you_pay.py --identifier "THE-CONFIRMED-IDENTIFIER" --entity-type gcash --access-token "SIGNED-IN-SUPABASE-ACCESS-TOKEN"
 ```
 
-The validation command verifies both the confirmed Supabase match and, unless `--skip-web-risk` is supplied, Google's official Web Risk test-list URL. It never creates fake reports or inserts test intelligence.
+The validation command verifies both the confirmed Supabase match and, unless `--skip-web-risk` is supplied, Google's official Web Risk test-list URL through an authenticated subscription allowance. Never commit or share the access token. It never creates fake reports or inserts test intelligence.
 
 ## Delivery status
 

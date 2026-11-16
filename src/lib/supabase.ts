@@ -5,6 +5,9 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = url && key ? createClient(url, key) : null
 export const isSupabaseConfigured = Boolean(supabase)
 
+export type SubscriptionPlan = 'free' | 'pro' | 'premium'
+export type SubscriptionState = { subscription_plan: SubscriptionPlan; subscription_status: 'active' | 'pending_payment' | 'cancelled'; pending_plan: SubscriptionPlan | null }
+
 export async function sendMagicLink(email: string) {
   if (!supabase) throw new Error('Sign-in is not configured yet.')
   const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
@@ -21,6 +24,13 @@ export async function signInWithProvider(provider: 'google' | 'facebook') {
   if (!supabase) throw new Error('Sign-in is not configured yet.')
   const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
   if (error) throw error
+}
+
+export async function chooseSubscriptionPlan(plan: SubscriptionPlan): Promise<SubscriptionState> {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data, error } = await supabase.rpc('select_subscription_plan', { p_plan: plan }).single()
+  if (error) throw error
+  return data as SubscriptionState
 }
 
 export type ReportEntityType = 'gcash' | 'maya' | 'bank' | 'phone' | 'url' | 'social'
