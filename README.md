@@ -53,6 +53,18 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 
 ## Before You Pay: production configuration
 
+### Zero-fee starting architecture
+
+VeriSuri starts every URL assessment with local Python rules and two server-side threat feeds:
+
+- **CERT Polska Warning List:** requires no key. Its active-domain feed is refreshed in memory by FastAPI.
+- **PhishTank:** create a free application key for automatic downloads, then set `PHISHTANK_APP_KEY` in local `.env` and Vercel server variables. VeriSuri consumes its verified-online feed, not unverified public submissions.
+- **Python detection engine:** detects URL structure, lookalike financial brands, suspicious domain endings, credential lures, and other explainable signals.
+
+The browser never calls either feed directly. Feed matches are evidence only; a no-match result is not a safety guarantee. `THREAT_FEED_REFRESH_MINUTES=60` controls the in-memory refresh interval. Do not put `PHISHTANK_APP_KEY` in a Vite variable.
+
+Google Web Risk remains integrated but is disabled by default. Set `ENABLE_GOOGLE_WEB_RISK=true` only after its billing account is active; this preserves the existing quota and abuse-protection logic for a future commercial release.
+
 1. In Google Cloud, enable billing and the **Web Risk API** for the project that will run VeriSuri. Create an API key restricted to the Web Risk API. Keep it server-side only.
 2. Add `GOOGLE_WEB_RISK_API_KEY` to the local FastAPI `.env` for development and to Vercel's server environment variables for production. Do not add it to `.env.local` or any `VITE_` variable.
 3. Submit a real report through VeriSuri, sign in as an assigned moderator, and confirm the report. Only confirmed records can be returned by payment/report matching.

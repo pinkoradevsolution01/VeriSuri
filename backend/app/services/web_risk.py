@@ -14,6 +14,12 @@ class WebRiskClient:
     def configured(self) -> bool:
         return bool(get_settings().google_web_risk_api_key)
 
+    @property
+    def enabled(self) -> bool:
+        """Keep the commercial lookup available, but opt in only when billing is ready."""
+        settings = get_settings()
+        return bool(settings.enable_google_web_risk and settings.google_web_risk_api_key)
+
     async def lookup(self, url: str) -> tuple[bool | None, list[str]]:
         key = get_settings().google_web_risk_api_key
         if not key: return None, []

@@ -8,7 +8,10 @@ class Settings(BaseSettings):
     environment: str = "development"
     allowed_origins: str = "http://localhost:5173"
     google_web_risk_api_key: str | None = None
+    enable_google_web_risk: bool = False
     free_web_risk_monthly_budget: int = 100000
+    phishtank_app_key: str | None = None
+    threat_feed_refresh_minutes: int = 60
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 

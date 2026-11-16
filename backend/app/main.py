@@ -5,9 +5,10 @@ from backend.app.schemas import AlertItem, Assessment, LinkRequest, MessageReque
 from backend.app.services.detector import HybridDetector, build_assessment
 from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
+from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
 
-detector, repository, web_risk = HybridDetector(), SupabaseRepository(), WebRiskClient()
+detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().origins, allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
 
@@ -17,7 +18,9 @@ async def health() -> dict[str, str | bool]:
         "status": "ok",
         "engine": detector.version,
         "web_risk_configured": web_risk.configured,
+        "web_risk_enabled": web_risk.enabled,
         "supabase_report_matching_configured": repository.enabled,
+        **threat_feeds.status,
     }
 
 @app.post("/api/v1/analyze/message", response_model=Assessment)
@@ -26,11 +29,14 @@ async def analyze_message(payload: MessageRequest) -> Assessment: return detecto
 @app.post("/api/v1/analyze/link", response_model=Assessment)
 async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     signals, score = url_signals(payload.url)
+    feed_result = await threat_feeds.lookup(payload.url)
+    signals.extend(feed_result.signals)
+    score = max(score, feed_result.score)
     unsafe, threat_types = None, []
-    source = "url-rules"
-    if not web_risk.configured:
-        signals.append("Google Web Risk is not configured; local URL rules were used")
-    else:
+    source = feed_result.source
+    # Google Web Risk remains implemented for a later billing-enabled release.
+    # The zero-fee feeds and Python engine are the default starting architecture.
+    if web_risk.enabled:
         token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
         user_id = await repository.user_id_from_access_token(token)
         if not user_id:
@@ -50,9 +56,9 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
                 else:
                     unsafe, threat_types = await web_risk.lookup(payload.url)
                     if unsafe is None:
-                        signals.append("Google Web Risk is unavailable; local URL rules were used")
+                        signals.append("Google Web Risk is unavailable; zero-fee feeds and local Python rules were used")
                     else:
-                        source = "google-web-risk+url-rules"
+                        source = "google-web-risk+zero-fee-threat-feeds+python-rules"
                         signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
     return build_assessment(score, signals, detector.version, source)
