@@ -27,6 +27,13 @@ For split local development, make `.env.local` with `VITE_API_BASE_URL=http://lo
 3. Train `backend/train.py` only on permissioned labelled Filipino, English, and Taglish messages. Model artifacts are deliberately ignored by Git.
 4. Before production report intake, add Supabase Auth session validation, rate limiting, malware scanning, and signed evidence uploads.
 
+## AI model workflow
+
+1. Review and approve permissioned labelled data against [`backend/data/README.md`](backend/data/README.md).
+2. Train: `py backend/train.py backend/data/approved_messages.csv --version verisuri-hybrid-v1`.
+3. Gate the result: `py backend/evaluate.py backend/models/verisuri_v1.metrics.json`.
+4. Register approved metrics: `py backend/register_model.py backend/models/verisuri_v1.metrics.json`.
+
 ## Delivery status
 
 The MVP foundations are implemented: app UI, FastAPI endpoint contract, local rule engine, trainable scikit-learn model pipeline, Web Risk integration boundary, report-match repository, Supabase schema/RLS, and Vercel configuration. Evidence vault, Scam DNA, map, web push, ONNX, and transformer features remain separately scoped Phase 2–4 work.
