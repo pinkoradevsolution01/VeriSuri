@@ -57,7 +57,7 @@ $$;
 
 -- Atomically reserves one Google Web Risk lookup. Dates use Philippine time.
 -- Free accounts share a 100,000-request monthly allocation. The daily free limit
--- is recalculated on every call as min(5, remaining allocation / active users / days left).
+-- is recalculated on every call as min(3, remaining allocation / active users / days left).
 -- Paid plans have fixed daily limits after a verified payment activation.
 create or replace function public.consume_web_risk_quota(p_user_id uuid, p_free_monthly_budget integer default 100000)
 returns table (allowed boolean, plan text, daily_limit integer, used_today integer, remaining_today integer, reason text)
@@ -92,7 +92,7 @@ begin
 
   if v_plan = 'free' then
     select count(*) into v_active_free from public.profiles where subscription_plan = 'free' and subscription_status = 'active';
-    v_limit := least(5, floor(greatest(p_free_monthly_budget - v_month_free, 0)::numeric / greatest(v_active_free, 1) / greatest(v_days_left, 1))::integer);
+    v_limit := least(3, floor(greatest(p_free_monthly_budget - v_month_free, 0)::numeric / greatest(v_active_free, 1) / greatest(v_days_left, 1))::integer);
     if v_month_free >= p_free_monthly_budget then
       return query select false, v_plan, v_limit, v_used, greatest(v_limit - v_used, 0), 'The shared free Web Risk allocation is exhausted for this month';
       return;
