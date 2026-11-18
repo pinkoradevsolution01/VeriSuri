@@ -1,15 +1,28 @@
+import json
 from pathlib import Path
 import joblib
 from backend.app.schemas import Assessment, RiskLevel
 from backend.app.services.rules import message_signals
 
 MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "verisuri_v1.joblib"
+METRICS_PATH = Path(__file__).resolve().parents[2] / "models" / "verisuri_v1.metrics.json"
 
 class HybridDetector:
     """Local character-TF-IDF model combined with transparent fraud rules."""
-    version = "verisuri-hybrid-v1"
     def __init__(self) -> None:
-        self.model = joblib.load(MODEL_PATH) if MODEL_PATH.exists() else None
+        self.model = None
+        self.version = "verisuri-rules-v1"
+        self.model_release_approved = False
+        # A demo or unreviewed local artifact must never influence a live score.
+        if MODEL_PATH.exists() and METRICS_PATH.exists():
+            try:
+                metrics = json.loads(METRICS_PATH.read_text(encoding="utf-8"))
+                if metrics.get("release_status") == "approved" and metrics.get("dataset_validation", {}).get("production_eligible"):
+                    self.model = joblib.load(MODEL_PATH)
+                    self.version = str(metrics.get("version", "verisuri-hybrid-v1"))
+                    self.model_release_approved = True
+            except Exception:
+                self.model = None
     def analyze(self, text: str) -> Assessment:
         signals, rule_score = message_signals(text)
         model_score = None

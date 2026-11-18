@@ -17,6 +17,7 @@ async def health() -> dict[str, str | bool]:
     return {
         "status": "ok",
         "engine": detector.version,
+        "model_release_approved": detector.model_release_approved,
         "web_risk_configured": web_risk.configured,
         "web_risk_enabled": web_risk.enabled,
         "supabase_report_matching_configured": repository.enabled,
@@ -84,4 +85,4 @@ async def alerts() -> list[AlertItem]:
     live = await repository.published_alerts()
     if live is not None:
         return live
-    return [AlertItem(id="sample-gcash", title="New GCash phishing alert", summary="Verify account notices only in the official GCash app.", severity="high", published_at="2026-11-16T00:00:00Z"), AlertItem(id="sample-bpi", title="Bank impersonation scam", summary="Do not provide OTPs in response to unsolicited messages.", severity="medium", published_at="2026-11-15T00:00:00Z")]
+    return []

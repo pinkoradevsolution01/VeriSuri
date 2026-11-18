@@ -54,10 +54,20 @@ The root [`pyproject.toml`](pyproject.toml) requires Python 3.12 exactly, and [`
 
 ## AI model workflow
 
-1. Review and approve permissioned labelled data against [`backend/data/README.md`](backend/data/README.md).
+1. Review and approve permissioned labelled data against [`backend/data/README.md`](backend/data/README.md). Do not use synthetic or user-submitted report text as model data.
 2. Train: `py backend/train.py backend/data/approved_messages.csv --version verisuri-hybrid-v1`.
-3. Gate the result: `py backend/evaluate.py backend/models/verisuri_v1.metrics.json`.
-4. Register approved metrics: `py backend/register_model.py backend/models/verisuri_v1.metrics.json`.
+3. Gate the held-out, language-by-language result: `py backend/evaluate.py backend/models/verisuri_v1.metrics.json`.
+4. Record accountable human approval: `py backend/approve_model.py backend/models/verisuri_v1.metrics.json --reviewer "reviewer-id"`.
+5. Register only approved metrics: `py backend/register_model.py backend/models/verisuri_v1.metrics.json`.
+
+An unapproved or demo model is deliberately ignored at runtime; VeriSuri then uses transparent safety rules and must not be represented as an authoritative fraud verdict.
+
+## Accuracy and evidence boundaries
+
+- **Messages:** Scores become model-assisted only after the approval workflow above. Until then, the message feature is an explainable rules-based safety screen.
+- **Links:** A threat-feed match is evidence of risk. A clean result means no supported source or local rule matched; it does not prove safety.
+- **Payment and report lookup:** Only confirmed, moderated reports can increase risk. A no-match does not verify a recipient.
+- **Alerts:** The application shows only published, moderated alerts. It never substitutes fictional sample advisories for live intelligence.
 
 ## Before You Pay: production configuration
 
