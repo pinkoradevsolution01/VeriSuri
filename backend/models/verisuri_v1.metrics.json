@@ -1,0 +1,12 @@
+{
+  "version": "verisuri-hybrid-v1-demo",
+  "dataset_rows": 120,
+  "train_rows": 96,
+  "test_rows": 24,
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "roc_auc": 1.0,
+  "warning": "Evaluate disaggregated Filipino, English, and Taglish performance before production release."
+}

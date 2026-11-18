@@ -84,4 +84,13 @@ Use database Row-Level Security and strict access controls. Keep Supabase secret
 06  Nationwide Expansion
     Regional alerts, aggregated map, enhanced multilingual and offline AI
 
+To meet your documented development sequence, every “partial” item needs completion before calling VeriSuri production-ready.
 
+Priority order:
+1. Finish Foundation: Supabase sign-in/sign-out UI, protected sessions, and Vercel deployment.
+2. Finish AI Engine: collect permissioned data, train/evaluate the scikit-learn model, register model version.
+3. Finish Before You Pay: configure Google Web Risk and validate payment/report matching against real moderated records.
+4. Finish Community Reporting: evidence upload, reviewer/moderator dashboard, approvals/appeals, audit logging.
+5. Build Phase 2 intelligence: Evidence Vault, Scam DNA, report relationships.
+6. Build Phase 3–4 nationwide/offline intelligence features.
+The app currently has a working base, but it is not complete until those partial items are implemented and configured.
