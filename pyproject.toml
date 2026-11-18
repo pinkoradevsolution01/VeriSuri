@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "VeriSuri FastAPI runtime for Vercel"
 # Vercel must not select Python 3.14: the pinned ML/API dependencies below
 # have compatible wheels for CPython 3.12.
-requires-python = ">=3.12,<3.13"
+requires-python = "~=3.12.0"
 dependencies = [
   "fastapi==0.115.6",
   "uvicorn[standard]==0.34.0",
