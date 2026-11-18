@@ -26,7 +26,7 @@ Import the repository as **one Vite project** from its root directory. Do not ch
 
 In the import screen, choose **Import single project** beside the Vite application, use root directory `./`, and keep the Framework Preset as **Vite**. Add server-only environment variables there, then deploy.
 
-The root [`.python-version`](.python-version) pins Vercel's FastAPI function to Python 3.12. Keep this file: the pinned Pydantic and scikit-learn dependencies are compatible with Python 3.12, while the current Python 3.14 build image is not.
+The root [`pyproject.toml`](pyproject.toml) requires Python 3.12 exactly, and [`.python-version`](.python-version) provides the same fallback pin. Keep both files: the pinned Pydantic and scikit-learn dependencies are compatible with Python 3.12, while this project's current dependency pins do not build on Python 3.14.
 
 ## Setup
 
