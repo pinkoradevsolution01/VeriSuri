@@ -2,7 +2,31 @@ import { createClient } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
-export const supabase = url && key ? createClient(url, key) : null
+const memoryStorage = new Map<string, string>()
+
+// Some private-browsing or restricted mobile browser contexts can throw when
+// localStorage is accessed. Retaining sessions in memory keeps the app usable.
+const safeStorage = {
+  getItem: (storageKey: string) => {
+    try { return window.localStorage.getItem(storageKey) }
+    catch { return memoryStorage.get(storageKey) ?? null }
+  },
+  setItem: (storageKey: string, value: string) => {
+    try { window.localStorage.setItem(storageKey, value) }
+    catch { memoryStorage.set(storageKey, value) }
+  },
+  removeItem: (storageKey: string) => {
+    try { window.localStorage.removeItem(storageKey) }
+    catch { memoryStorage.delete(storageKey) }
+  },
+}
+
+let client = null
+if (url && key) {
+  try { client = createClient(url, key, { auth: { storage: safeStorage } }) }
+  catch { client = null }
+}
+export const supabase = client
 export const isSupabaseConfigured = Boolean(supabase)
 
 export type SubscriptionPlan = 'free' | 'pro' | 'premium'

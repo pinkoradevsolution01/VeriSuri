@@ -6,8 +6,13 @@ import './production.css'
 import './subscription.css'
 import './free-plan.css'
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').then(registration => registration.update()))
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js')
+      .then(registration => registration.update())
+      // A PWA cache is optional. A registration problem must never stop the app.
+      .catch(() => undefined)
+  })
 }
 
 createRoot(document.getElementById('root')!).render(
