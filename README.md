@@ -26,6 +26,8 @@ Import the repository as **one Vite project** from its root directory. Do not ch
 
 In the import screen, choose **Import single project** beside the Vite application, use root directory `./`, and keep the Framework Preset as **Vite**. Add server-only environment variables there, then deploy.
 
+The root [`.python-version`](.python-version) pins Vercel's FastAPI function to Python 3.12. Keep this file: the pinned Pydantic and scikit-learn dependencies are compatible with Python 3.12, while the current Python 3.14 build image is not.
+
 ## Setup
 
 1. Apply [schema.sql](supabase/schema.sql) in the Supabase SQL editor.
