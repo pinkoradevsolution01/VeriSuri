@@ -1,0 +1,2 @@
+# Vercel installs Python function dependencies from this root manifest.
+-r backend/requirements.txt

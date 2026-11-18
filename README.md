@@ -20,6 +20,12 @@ uvicorn backend.app.main:app --reload --port 8000
 
 For split local development, make `.env.local` with `VITE_API_BASE_URL=http://localhost:8000/api/v1`.
 
+## Vercel deployment
+
+Import the repository as **one Vite project** from its root directory. Do not choose the multi-service import: the root [`vercel.json`](vercel.json) already builds the Vite PWA, routes `/api/*` to [`api/index.py`](api/index.py), and preserves client-side routes. The root [`requirements.txt`](requirements.txt) installs the FastAPI runtime dependencies for that Python function.
+
+In the import screen, choose **Import single project** beside the Vite application, use root directory `./`, and keep the Framework Preset as **Vite**. Add server-only environment variables there, then deploy.
+
 ## Setup
 
 1. Apply [schema.sql](supabase/schema.sql) in the Supabase SQL editor.
