@@ -9,5 +9,6 @@ __pycache__/
 backend/models/*.joblib
 backend/data/*.csv
 backend/research/output/
+backend/research/*.csv
 .sites-checkout/
 .openai/
