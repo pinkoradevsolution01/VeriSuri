@@ -30,12 +30,23 @@ async def inspect_url(raw_url: str) -> LinkIntelligence:
     if host.startswith("xn--"): notes.append("Internationalized (punycode) domain detected; inspect the destination carefully.")
     if official: notes.append("Host matches VeriSuri's official-domain allowlist.")
     redirects: list[str] = []
+    registered_on: str | None = None
+    age_days: int | None = None
     if not await _public_host(host):
         notes.append("Destination is not a public resolvable host; server-side redirect checks were not performed.")
         return LinkIntelligence(canonical_host=host or None, official_domain=official, redirect_hosts=redirects, notes=notes)
     current = canonical
     try:
         async with httpx.AsyncClient(timeout=4, follow_redirects=False, headers={"User-Agent": "VeriSuri-Link-Safety/1.0"}) as client:
+            rdap = await client.get(f"https://rdap.org/domain/{host}")
+            if rdap.status_code == 200:
+                for event in rdap.json().get("events", []):
+                    if event.get("eventAction") == "registration" and isinstance(event.get("eventDate"), str):
+                        registered = datetime.fromisoformat(event["eventDate"].replace("Z", "+00:00"))
+                        registered_on = registered.date().isoformat()
+                        age_days = max(0, (datetime.now(UTC) - registered.astimezone(UTC)).days)
+                        notes.append(f"Domain registration evidence: approximately {age_days} day(s) old.")
+                        break
             for _ in range(4):
                 response = await client.head(current)
                 location = response.headers.get("location")
@@ -44,5 +55,5 @@ async def inspect_url(raw_url: str) -> LinkIntelligence:
                 if not await _public_host(next_host): notes.append("A redirect pointed to a non-public destination and was not followed."); break
                 redirects.append(next_host); current = next_url
             if redirects: notes.append(f"Server-side redirect inspection found {len(redirects)} redirect hop(s).")
-    except httpx.HTTPError: notes.append("Redirect destination could not be inspected safely at this time.")
-    return LinkIntelligence(canonical_host=host, official_domain=official, redirect_hosts=redirects, notes=notes)
+    except (httpx.HTTPError, ValueError): notes.append("Redirect or domain-registration evidence could not be inspected safely at this time.")
+    return LinkIntelligence(canonical_host=host, official_domain=official, redirect_hosts=redirects, domain_registered_on=registered_on, domain_age_days=age_days, notes=notes)
