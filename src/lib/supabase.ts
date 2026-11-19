@@ -93,6 +93,9 @@ export type ModerationReport = {
   training_examples: { id: string; text_redacted: string; status: string }[]
 }
 
+export type ModeratedAlertDraft = { title: string; summary: string; severity: 'low' | 'medium' | 'high'; sourceName: string; sourceUrl: string; affectedPlatform: string; region?: string; reviewAt: string; expiresAt: string }
+export type ModerationAlert = ModeratedAlertDraft & { id: string; status: 'pending'; created_at: string }
+
 export async function submitScamReport(submission: ReportSubmission) {
   if (!supabase) throw new Error('Report submission is not configured yet.')
   const { data: { user } } = await supabase.auth.getUser()
@@ -125,6 +128,35 @@ export async function getModeratorQueue(): Promise<ModerationReport[]> {
     .limit(50)
   if (error) throw error
   return (data ?? []) as ModerationReport[]
+}
+
+export async function createModeratedAlert(draft: ModeratedAlertDraft) {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { error } = await supabase.rpc('create_moderated_alert', {
+    p_title: draft.title.trim(), p_summary: draft.summary.trim(), p_severity: draft.severity,
+    p_source_name: draft.sourceName.trim(), p_source_url: draft.sourceUrl.trim(), p_affected_platform: draft.affectedPlatform.trim(),
+    p_region: draft.region?.trim() || null, p_review_at: draft.reviewAt, p_expires_at: draft.expiresAt,
+  })
+  if (error) throw error
+}
+
+export async function getPendingModeratedAlerts(): Promise<ModerationAlert[]> {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { data, error } = await supabase.from('fraud_alerts')
+    .select('id,title,summary,severity,source_name,source_url,affected_platform,region,review_at,expires_at,status,created_at')
+    .eq('status', 'pending').order('created_at', { ascending: true }).limit(30)
+  if (error) throw error
+  return (data ?? []).map(item => ({
+    id: item.id, title: item.title, summary: item.summary, severity: item.severity,
+    sourceName: item.source_name, sourceUrl: item.source_url, affectedPlatform: item.affected_platform,
+    region: item.region ?? undefined, reviewAt: item.review_at, expiresAt: item.expires_at, status: 'pending' as const, created_at: item.created_at,
+  }))
+}
+
+export async function reviewModeratedAlert(alertId: string, decision: 'verified' | 'rejected') {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { error } = await supabase.rpc('review_moderated_alert', { p_alert_id: alertId, p_decision: decision })
+  if (error) throw error
 }
 
 export async function reviewScamReport(reportId: string, decision: 'confirmed' | 'rejected', reason: string, trainingStatus: 'approved' | 'rejected' | null = null) {

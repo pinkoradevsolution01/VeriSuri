@@ -60,3 +60,9 @@ class AlertItem(BaseModel):
     summary: str
     severity: RiskLevel
     published_at: str
+    source_name: str
+    source_url: str
+    affected_platform: str
+    region: str | None = None
+    review_at: str
+    expires_at: str

@@ -15,7 +15,7 @@ export type Assessment = {
   engine_version: string
   source: string
 }
-export type Alert = { id: string; title: string; summary: string; severity: RiskLevel; published_at: string }
+export type Alert = { id: string; title: string; summary: string; severity: RiskLevel; published_at: string; source_name: string; source_url: string; affected_platform: string; region: string | null; review_at: string; expires_at: string }
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 

@@ -1,5 +1,6 @@
 import hashlib
 import httpx
+from datetime import UTC, datetime
 from dataclasses import dataclass
 from backend.app.config import get_settings
 
@@ -81,7 +82,16 @@ class SupabaseRepository:
     async def published_alerts(self) -> list[dict] | None:
         if not self.enabled: return None
         headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
-        params = {"select": "id,title,summary,severity,published_at", "published": "eq.true", "order": "published_at.desc", "limit": "20"}
-        async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get(f"{self.url}/rest/v1/fraud_alerts", headers=headers, params=params); response.raise_for_status()
-            return response.json()
+        now = datetime.now(UTC).isoformat()
+        params = {
+            "select": "id,title,summary,severity,published_at,source_name,source_url,affected_platform,region,review_at,expires_at",
+            "published": "eq.true", "status": "eq.verified", "review_at": f"gt.{now}", "expires_at": f"gt.{now}",
+            "order": "published_at.desc", "limit": "20",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self.url}/rest/v1/fraud_alerts", headers=headers, params=params); response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError:
+            # Never substitute unverified advisory content if the source is unavailable.
+            return []

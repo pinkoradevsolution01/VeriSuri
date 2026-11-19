@@ -2,11 +2,11 @@ import { ExternalLink, FileText, Landmark, ShieldAlert } from 'lucide-react'
 
 export type RiskTone = 'low' | 'medium' | 'high'
 
-type SupportEntry = { name: string; kind: string; url: string }
+export type SupportEntry = { name: string; kind: string; url: string }
 
 // Provider-owned support pages only. Never derive a contact destination from
 // suspicious content supplied by a user.
-const supportDirectory: SupportEntry[] = [
+export const supportDirectory: SupportEntry[] = [
   { name: 'GCash', kind: 'Wallet support', url: 'https://help.gcash.com/hc/en-us/p/contact-us' },
   { name: 'Maya', kind: 'Wallet support', url: 'https://www.maya.ph/contact-us' },
   { name: 'BDO', kind: 'Bank consumer assistance', url: 'https://www.bdo.com.ph/consumer-assistance' },
@@ -32,7 +32,7 @@ export function SafetyActionPlan({ tone }: { tone: RiskTone }) {
       <li>Save screenshots, the message or URL, account name, transaction reference, amount, and time. Never share an OTP or password as evidence.</li>
       <li>Use only the official-support links below. Check the address bar before entering account information.</li>
     </ol>
-    <div className="action-plan-actions"><a className="secondary-action" href="#/report"><FileText size={17} /> Report incident</a><a className="secondary-action" href="https://cicc.gov.ph/report/" target="_blank" rel="noopener noreferrer"><Landmark size={17} /> Official CICC report <ExternalLink size={14} /></a></div>
+    <div className="action-plan-actions"><a className="secondary-action" href="#/recovery"><ShieldAlert size={17} /> I already sent money or shared an OTP</a><a className="secondary-action" href="#/report"><FileText size={17} /> Report incident</a><a className="secondary-action" href="https://cicc.gov.ph/report/" target="_blank" rel="noopener noreferrer"><Landmark size={17} /> Official CICC report <ExternalLink size={14} /></a></div>
     <details className="official-directory"><summary>Open verified official support directory</summary><p>These links go only to provider-owned support pages, not contacts from the suspicious content.</p><div className="support-directory-grid">{supportDirectory.map(entry => <a key={entry.name} href={entry.url} target="_blank" rel="noopener noreferrer"><span><b>{entry.name}</b><small>{entry.kind}</small></span><ExternalLink size={16} aria-hidden="true" /></a>)}</div><small className="directory-reviewed">Directory links reviewed 19 November 2026. Use the official page for current support channels.</small></details>
   </section>
 }
