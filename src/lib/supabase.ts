@@ -95,6 +95,7 @@ export type ModerationReport = {
 
 export type ModeratedAlertDraft = { title: string; summary: string; severity: 'low' | 'medium' | 'high'; sourceName: string; sourceUrl: string; affectedPlatform: string; region?: string; reviewAt: string; expiresAt: string }
 export type ModerationAlert = ModeratedAlertDraft & { id: string; status: 'pending'; created_at: string }
+export type EvidenceVaultItem = { id: string; item_type: 'screenshot' | 'transaction_reference' | 'note'; filename: string | null; transaction_reference: string | null; occurred_at: string | null; note: string | null; created_at: string }
 
 export async function submitScamReport(submission: ReportSubmission) {
   if (!supabase) throw new Error('Report submission is not configured yet.')
@@ -156,6 +157,28 @@ export async function getPendingModeratedAlerts(): Promise<ModerationAlert[]> {
 export async function reviewModeratedAlert(alertId: string, decision: 'verified' | 'rejected') {
   if (!supabase) throw new Error('Supabase is not configured yet.')
   const { error } = await supabase.rpc('review_moderated_alert', { p_alert_id: alertId, p_decision: decision })
+  if (error) throw error
+}
+
+export async function getEvidenceVault(): Promise<EvidenceVaultItem[]> {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { data, error } = await supabase.from('evidence_vault_items').select('id,item_type,filename,transaction_reference,occurred_at,note,created_at').order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as EvidenceVaultItem[]
+}
+
+export async function addEvidenceVaultItem(item: { type: EvidenceVaultItem['item_type']; note?: string; reference?: string; occurredAt?: string; file?: File }) {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error('Please sign in before using the Evidence Vault.')
+  let storagePath: string | null = null; let filename: string | null = null
+  if (item.file) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(item.file.type) || item.file.size > 5_242_880) throw new Error('Use a redacted JPG, PNG, or WebP image up to 5 MB.')
+    filename = item.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    storagePath = `${user.id}/${crypto.randomUUID()}-${filename}`
+    const { error } = await supabase.storage.from('evidence-vault').upload(storagePath, item.file, { contentType: item.file.type, upsert: false })
+    if (error) throw error
+  }
+  const { error } = await supabase.from('evidence_vault_items').insert({ owner_id: user.id, item_type: item.type, storage_path: storagePath, filename, transaction_reference: item.reference?.trim() || null, occurred_at: item.occurredAt || null, note: item.note?.trim() || null })
   if (error) throw error
 }
 
