@@ -16,6 +16,23 @@ class AssessmentExplanation(BaseModel):
     source: str
 
 
+class HighlightedSignal(BaseModel):
+    start: int
+    end: int
+    text: str
+    label: str
+    source: str
+
+
+class LinkIntelligence(BaseModel):
+    canonical_host: str | None = None
+    official_domain: bool = False
+    redirect_hosts: list[str] = []
+    domain_registered_on: str | None = None
+    domain_age_days: int | None = None
+    notes: list[str] = []
+
+
 class Assessment(BaseModel):
     score: int = Field(ge=0, le=100)
     level: RiskLevel
@@ -23,6 +40,10 @@ class Assessment(BaseModel):
     summary: str
     signals: list[str] = []
     explanations: list[AssessmentExplanation] = []
+    highlights: list[HighlightedSignal] = []
+    calibrated_scam_probability: int | None = None
+    confidence_basis: str | None = None
+    link_intelligence: LinkIntelligence | None = None
     recommendation_title: str
     recommendations: list[str]
     engine_version: str

@@ -1,0 +1,6 @@
+import type { HighlightedSignal, LinkIntelligence } from '../lib/api'
+
+export function ScreeningEvidence({ highlights, probability, basis, link }: { highlights: HighlightedSignal[]; probability: number | null; basis: string | null; link: LinkIntelligence | null }) {
+  if (!highlights.length && probability === null && !link) return null
+  return <section className="screening-evidence"><h3>Screening evidence</h3>{probability !== null ? <p className="model-confidence"><b>Calibrated model probability: {probability}%</b><span>{basis}</span></p> : highlights.length ? <p className="rules-notice">Filipino/Taglish safety rules highlighted these portions. A calibrated model probability appears only after a validated model release.</p> : null}{highlights.length ? <div className="highlight-list">{highlights.map(item => <article key={`${item.start}-${item.end}`}><mark>{item.text}</mark><span>{item.label}</span><small>{item.source}</small></article>)}</div> : null}{link ? <div className="link-intelligence"><b>Link destination intelligence</b><p>Host: {link.canonical_host ?? 'Unavailable'}{link.official_domain ? ' · Official-domain allowlist match' : ''}</p>{link.redirect_hosts.length ? <p>Server-side redirects: {link.redirect_hosts.join(' → ')}</p> : null}<ul>{link.notes.map(note => <li key={note}>{note}</li>)}</ul></div> : null}</section>
+}

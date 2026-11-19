@@ -7,17 +7,33 @@ SCAM_PATTERNS: list[tuple[re.Pattern[str], str, int]] = [
     (re.compile(r"\b(otp|one[- ]time password|mpin|password|pin)\b", re.I), "Requests a secret credential", 30),
     (re.compile(r"\b(you won|prize|cashback|refund|claim now)\b", re.I), "Uses a prize or refund lure", 15),
     (re.compile(r"\b(click|tap|open)\b.{0,45}\b(link|here)\b", re.I), "Directs the recipient to a link", 14),
+    (re.compile(r"\b(beripikahin|i-verify|kumpirmahin)\b.{0,40}\b(account|gcash|maya|bangko)\b", re.I), "Requests Filipino account verification", 22),
+    (re.compile(r"\b(ipadala|ibigay|send)\b.{0,35}\b(otp|pin|mpin|password)\b", re.I), "Requests an OTP or secret in Filipino/Taglish", 30),
+    (re.compile(r"\b(agad|ngayon na|madaliin|asap|within \d+ (minuto|oras))\b", re.I), "Uses Filipino/Taglish urgency", 17),
+    (re.compile(r"\b(nanalo|napanalunan|premyo|libreng pera|cashback)\b", re.I), "Uses a Filipino prize or reward lure", 15),
+    (re.compile(r"\b(i-click|pindutin|buksan)\b.{0,45}\b(link|dito)\b", re.I), "Directs the recipient to a link in Filipino/Taglish", 14),
 ]
 SUSPICIOUS_TLDS = {"xyz", "top", "click", "live", "shop", "site", "info", "buzz"}
 BRAND_TERMS = {"gcash", "maya", "bpi", "bdo", "metrobank", "unionbank", "paymaya"}
 
-def message_signals(text: str) -> tuple[list[str], int]:
-    signals, score = [], 0
+def message_evidence(text: str) -> tuple[list[str], int, list[tuple[int, int, str, str]]]:
+    signals, score, highlights = [], 0, []
     for pattern, signal, weight in SCAM_PATTERNS:
-        if pattern.search(text): signals.append(signal); score += weight
-    if re.search(r"https?://\S+", text, re.I): signals.append("Contains an external URL"); score += 8
+        match = pattern.search(text)
+        if match:
+            signals.append(signal); score += weight
+            highlights.append((match.start(), match.end(), match.group(0), signal))
+    url_match = re.search(r"https?://\S+", text, re.I)
+    if url_match:
+        signals.append("Contains an external URL"); score += 8
+        highlights.append((url_match.start(), url_match.end(), url_match.group(0), "Contains an external URL"))
     if text.count("!") >= 3 or sum(c.isupper() for c in text) > max(10, len(text) * .45): signals.append("Uses unusually forceful formatting"); score += 7
-    return signals, min(score, 100)
+    return signals, min(score, 100), highlights
+
+
+def message_signals(text: str) -> tuple[list[str], int]:
+    signals, score, _ = message_evidence(text)
+    return signals, score
 
 def url_signals(raw_url: str) -> tuple[list[str], int]:
     parsed = urlparse(raw_url if "://" in raw_url else f"https://{raw_url}")

@@ -7,6 +7,7 @@ from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
 from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
+from backend.app.services.url_intelligence import inspect_url
 
 detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -30,6 +31,11 @@ async def analyze_message(payload: MessageRequest) -> Assessment: return detecto
 @app.post("/api/v1/analyze/link", response_model=Assessment)
 async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     signals, score = url_signals(payload.url)
+    intelligence = await inspect_url(payload.url)
+    if intelligence.redirect_hosts:
+        signals.append(f"Server-side redirect chain: {' → '.join(intelligence.redirect_hosts)}")
+    if not intelligence.official_domain and intelligence.canonical_host and intelligence.canonical_host.startswith("xn--"):
+        signals.append("Uses a punycode domain that can imitate familiar characters"); score = max(score, 55)
     feed_result = await threat_feeds.lookup(payload.url)
     signals.extend(feed_result.signals)
     score = max(score, feed_result.score)
@@ -62,7 +68,9 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
                         source = "google-web-risk+zero-fee-threat-feeds+python-rules"
                         signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
-    return build_assessment(score, signals, detector.version, source, "link", payload.url)
+    assessment = build_assessment(score, signals, detector.version, source, "link", payload.url)
+    assessment.link_intelligence = intelligence
+    return assessment
 
 async def lookup_entity(identifier: str, entity_type: str, context: str) -> Assessment:
     count = await repository.report_count(entity_type, identifier)

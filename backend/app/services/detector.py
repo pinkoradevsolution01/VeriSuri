@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 import joblib
-from backend.app.schemas import Assessment, AssessmentExplanation, RiskLevel
-from backend.app.services.rules import message_signals
+from backend.app.schemas import Assessment, AssessmentExplanation, HighlightedSignal, RiskLevel
+from backend.app.services.rules import message_evidence
 
 MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "verisuri_v1.joblib"
 METRICS_PATH = Path(__file__).resolve().parents[2] / "models" / "verisuri_v1.metrics.json"
@@ -24,13 +24,16 @@ class HybridDetector:
             except Exception:
                 self.model = None
     def analyze(self, text: str) -> Assessment:
-        signals, rule_score = message_signals(text)
+        signals, rule_score, matches = message_evidence(text)
+        highlights = [HighlightedSignal(start=start, end=end, text=snippet, label=label, source="VeriSuri Filipino/English local rules") for start, end, snippet, label in matches]
         model_score = None
         if self.model is not None:
             model_score = round(float(self.model.predict_proba([text])[0][1]) * 100)
             signals.append("Custom VeriSuri text model completed a local assessment")
         score = round(model_score * .65 + rule_score * .35) if model_score is not None else rule_score
-        return build_assessment(score, signals, self.version, "hybrid-model" if model_score is not None else "rule-engine", "message", text)
+        probability = model_score if model_score is not None else None
+        basis = "Calibrated probability from the approved VeriSuri model." if model_score is not None else None
+        return build_assessment(score, signals, self.version, "hybrid-model" if model_score is not None else "rule-engine", "message", text, highlights=highlights, calibrated_scam_probability=probability, confidence_basis=basis)
 
 def _brand_name(target: str | None) -> str | None:
     if not target:
@@ -119,9 +122,10 @@ def _explanations(signals: list[str]) -> list[AssessmentExplanation]:
     return explanations
 
 
-def build_assessment(score: int, signals: list[str], version: str, source: str, context: str = "general", target: str | None = None) -> Assessment:
+def build_assessment(score: int, signals: list[str], version: str, source: str, context: str = "general", target: str | None = None, highlights: list[HighlightedSignal] | None = None, calibrated_scam_probability: int | None = None, confidence_basis: str | None = None) -> Assessment:
     recommendation_title, recommendations = _recommendations(score, context, target)
     explanations = _explanations(signals)
-    if score >= 65: return Assessment(score=score, level=RiskLevel.high, verdict="High risk detected", summary="Do not send money or share credentials until independently verified.", signals=signals, explanations=explanations, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
-    if score >= 30: return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution", summary="Some scam indicators were found. Verify using an official app or number.", signals=signals, explanations=explanations, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
-    return Assessment(score=score, level=RiskLevel.low, verdict="No strong scam signal found", summary="No strong indicators were found. Continue to verify unfamiliar payment requests.", signals=signals, explanations=explanations, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
+    fields = dict(signals=signals, explanations=explanations, highlights=highlights or [], calibrated_scam_probability=calibrated_scam_probability, confidence_basis=confidence_basis, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
+    if score >= 65: return Assessment(score=score, level=RiskLevel.high, verdict="High risk detected", summary="Do not send money or share credentials until independently verified.", **fields)
+    if score >= 30: return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution", summary="Some scam indicators were found. Verify using an official app or number.", **fields)
+    return Assessment(score=score, level=RiskLevel.low, verdict="No strong scam signal found", summary="No strong indicators were found. Continue to verify unfamiliar payment requests.", **fields)

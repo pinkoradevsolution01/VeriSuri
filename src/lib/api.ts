@@ -2,6 +2,8 @@ import { supabase } from './supabase'
 
 export type RiskLevel = 'low' | 'medium' | 'high'
 export type AssessmentExplanation = { category: 'rule' | 'threat_feed' | 'community' | 'model' | 'service' | string; label: string; detail: string; source: string }
+export type HighlightedSignal = { start: number; end: number; text: string; label: string; source: string }
+export type LinkIntelligence = { canonical_host: string | null; official_domain: boolean; redirect_hosts: string[]; domain_registered_on: string | null; domain_age_days: number | null; notes: string[] }
 
 export type Assessment = {
   score: number
@@ -10,6 +12,10 @@ export type Assessment = {
   summary: string
   signals: string[]
   explanations: AssessmentExplanation[]
+  highlights: HighlightedSignal[]
+  calibrated_scam_probability: number | null
+  confidence_basis: string | null
+  link_intelligence: LinkIntelligence | null
   recommendation_title: string
   recommendations: string[]
   engine_version: string

@@ -4,6 +4,7 @@ import { SafetyActionPlan } from './components/SafetyActionPlan'
 import { AssessmentExplainability } from './components/AssessmentExplainability'
 import { IncidentRecovery } from './components/IncidentRecovery'
 import { ModeratedAlertPanel } from './components/ModeratedAlertPanel'
+import { ScreeningEvidence } from './components/ScreeningEvidence'
 import './threat-feeds.css'
 import './recommendations.css'
 import './action-plan.css'
@@ -13,6 +14,7 @@ import './recovery.css'
 import './moderated-alerts.css'
 import './recovery-strip.css'
 import './alerts-metadata.css'
+import './screening-evidence.css'
 import { ArrowDown, Bell, BrainCircuit, ChevronRight, ClipboardList, Database, Flag, Home as HomeIcon, Link2, MessageSquareText, Search, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
 import { chooseSubscriptionPlan, getModeratorQueue, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
@@ -73,7 +75,7 @@ function Tool({ type, navigate }: { type: 'pay' | 'message' | 'link' | 'reports'
     <div className="field message-field"><textarea id="check-value" rows={type === 'message' ? 6 : 2} value={value} onChange={event => setValue(event.target.value)} placeholder={samples[type]} /><button onClick={run} aria-label="Run check" disabled={loading}><Search /></button></div>
     <button className="primary-action" onClick={run} disabled={loading}>{loading ? 'Checking...' : type === 'reports' ? 'Search scam reports' : 'Run safety check'} <ChevronRight size={18} /></button>
     {notice && <p className="form-error">{notice}</p>}
-    {result && <><Score assessment={result} /><AssessmentExplainability explanations={result.explanations ?? []} /><section className="signal-list"><h3>Technical signals</h3>{result.signals.map(signal => <p key={signal}><TriangleAlert />{signal}</p>)}</section></>}
+    {result && <><Score assessment={result} /><AssessmentExplainability explanations={result.explanations ?? []} /><ScreeningEvidence highlights={result.highlights ?? []} probability={result.calibrated_scam_probability ?? null} basis={result.confidence_basis ?? null} link={result.link_intelligence ?? null} /><section className="signal-list"><h3>Technical signals</h3>{result.signals.map(signal => <p key={signal}><TriangleAlert />{signal}</p>)}</section></>}
   </main>
 }
 
