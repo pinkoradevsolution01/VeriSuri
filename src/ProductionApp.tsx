@@ -6,6 +6,7 @@ import { IncidentRecovery } from './components/IncidentRecovery'
 import { ModeratedAlertPanel } from './components/ModeratedAlertPanel'
 import { ScreeningEvidence } from './components/ScreeningEvidence'
 import { EvidenceVault } from './components/EvidenceVault'
+import { VerifiedAlertsPreview } from './components/VerifiedAlertsPreview'
 import './threat-feeds.css'
 import './recommendations.css'
 import './action-plan.css'
@@ -17,6 +18,7 @@ import './recovery-strip.css'
 import './alerts-metadata.css'
 import './screening-evidence.css'
 import './vault.css'
+import './alerts-preview.css'
 import { ArrowDown, Bell, BrainCircuit, ChevronRight, ClipboardList, Database, Flag, Home as HomeIcon, Link2, MessageSquareText, Search, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
 import { chooseSubscriptionPlan, getModeratorQueue, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
@@ -174,7 +176,7 @@ function Alerts({ navigate }: { navigate: (view: View) => void }) {
   </main>
 }
 
-function FeedArchitecture() { return <section className="feed-architecture motion-item is-visible" aria-labelledby="feed-architecture-title"><div className="section-heading"><div><p className="eyebrow">Starting URL protection</p><h2 id="feed-architecture-title">Zero-API-fee threat intelligence.</h2></div><p>Live public threat feeds are combined with VeriSuri’s explainable Python checks. A clean result never guarantees that a link is safe.</p></div><div className="feed-flow"><div className="feed-origin"><Link2 /><h3>VeriSuri URL Scanner</h3></div><ArrowDown className="feed-arrow" aria-hidden="true" /><div className="feed-sources"><article><ShieldCheck /><h3>PhishDestroy</h3><p>Live phishing and scam domain reputation</p></article><article><Database /><h3>CERT Polska</h3><p>Known dangerous domains</p></article></div><ArrowDown className="feed-arrow" aria-hidden="true" /><article className="feed-engine"><BrainCircuit /><h3>Your Python Detection Engine</h3><p>URL structure, suspicious keywords, lookalike domains, and transparent risk scoring.</p></article><ArrowDown className="feed-arrow" aria-hidden="true" /><div className="feed-outcome"><ShieldCheck /><h3>VeriSuri Risk Assessment</h3><p>Evidence, uncertainty, score, and a safer next action.</p></div></div><p className="feed-disclosure">Powered in part by PhishDestroy CTI (CC BY 4.0). Google Web Risk remains in the codebase as an optional future commercial source and is disabled by default.</p></section> }
+function FeedArchitecture() { return <><VerifiedAlertsPreview openAlerts={() => { window.location.hash = '#/alerts' }} /><section className="feed-architecture motion-item is-visible" aria-labelledby="feed-architecture-title"><div className="section-heading"><div><p className="eyebrow">Starting URL protection</p><h2 id="feed-architecture-title">Zero-API-fee threat intelligence.</h2></div><p>Live public threat feeds are combined with VeriSuri’s explainable Python checks. A clean result never guarantees that a link is safe.</p></div><div className="feed-flow"><div className="feed-origin"><Link2 /><h3>VeriSuri URL Scanner</h3></div><ArrowDown className="feed-arrow" aria-hidden="true" /><div className="feed-sources"><article><ShieldCheck /><h3>PhishDestroy</h3><p>Live phishing and scam domain reputation</p></article><article><Database /><h3>CERT Polska</h3><p>Known dangerous domains</p></article></div><ArrowDown className="feed-arrow" aria-hidden="true" /><article className="feed-engine"><BrainCircuit /><h3>Your Python Detection Engine</h3><p>URL structure, suspicious keywords, lookalike domains, and transparent risk scoring.</p></article><ArrowDown className="feed-arrow" aria-hidden="true" /><div className="feed-outcome"><ShieldCheck /><h3>VeriSuri Risk Assessment</h3><p>Evidence, uncertainty, score, and a safer next action.</p></div></div><p className="feed-disclosure">Powered in part by PhishDestroy CTI (CC BY 4.0). Google Web Risk remains in the codebase as an optional future commercial source and is disabled by default.</p></section></> }
 
 function BottomNav({ view, navigate }: { view: View; navigate: (view: View) => void }) { return <nav className="bottom-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}><HomeIcon /><span>Dashboard</span></button><button className={view === 'reports' ? 'active' : ''} onClick={() => navigate('reports')}><ClipboardList /><span>Reports</span></button><button className={view === 'alerts' ? 'active' : ''} onClick={() => navigate('alerts')}><Bell /><span>Alerts</span></button></nav> }
 
