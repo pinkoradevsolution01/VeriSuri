@@ -1,7 +1,9 @@
 import { type CSSProperties, useEffect, useState } from 'react'
 import { scrollToTop } from './lib/browser'
+import { SafetyActionPlan } from './components/SafetyActionPlan'
 import './threat-feeds.css'
 import './recommendations.css'
+import './action-plan.css'
 import { ArrowDown, Bell, BrainCircuit, ChevronRight, ClipboardList, Database, Flag, Home as HomeIcon, Link2, MessageSquareText, Search, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
 import { chooseSubscriptionPlan, getModeratorQueue, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
@@ -16,7 +18,24 @@ const samples: Record<'pay' | 'message' | 'link' | 'reports', string> = {
 const freeSubscription: SubscriptionState = { subscription_plan: 'free', subscription_status: 'active', pending_plan: null }
 
 function Brand() { return <span className="brand"><span className="brand-mark"><ShieldCheck size={24} /></span><span>Veri<span>Suri</span></span></span> }
-function Score({ assessment }: { assessment: Assessment }) { const tone = assessment.score >= 65 ? 'high' : assessment.score >= 30 ? 'medium' : 'low'; return <><section className={`result-card ${tone}`}><div><h2>{assessment.verdict}</h2><p>{assessment.summary}</p></div><div className={`score-meter score-${tone}`} aria-label={`Risk score ${assessment.score} out of 100`}><div className="score-ring" style={{ '--score': assessment.score } as CSSProperties & { '--score': number }}><b>{assessment.score}</b><small>/100</small></div><span>Risk score</span></div></section><section className={`recommendation-card ${tone}`} aria-label="Recommended next steps"><div><ShieldCheck /><div><p className="recommendation-kicker">Recommended next steps</p><h3>{assessment.recommendation_title}</h3></div></div><ul>{assessment.recommendations.map(item => <li key={item}>{item}</li>)}</ul><p className="assessment-disclaimer">Safety screening only — verify independently. A score is not a guarantee or an accusation.</p></section></> }
+function Score({ assessment }: { assessment: Assessment }) {
+  const tone = assessment.score >= 65 ? 'high' : assessment.score >= 30 ? 'medium' : 'low'
+  return <>
+    <section className={`result-card ${tone}`}>
+      <div><h2>{assessment.verdict}</h2><p>{assessment.summary}</p></div>
+      <div className={`score-meter score-${tone}`} aria-label={`Risk score ${assessment.score} out of 100`}>
+        <div className="score-ring" style={{ '--score': assessment.score } as CSSProperties & { '--score': number }}><b>{assessment.score}</b><small>/100</small></div>
+        <span>Risk score</span>
+      </div>
+    </section>
+    <section className={`recommendation-card ${tone}`} aria-label="Recommended next steps">
+      <div><ShieldCheck /><div><p className="recommendation-kicker">Recommended next steps</p><h3>{assessment.recommendation_title}</h3></div></div>
+      <ul>{assessment.recommendations.map(item => <li key={item}>{item}</li>)}</ul>
+      <p className="assessment-disclaimer">Safety screening only — verify independently. A score is not a guarantee or an accusation.</p>
+    </section>
+    <SafetyActionPlan tone={tone} />
+  </>
+}
 
 function Header({ view, navigate, userEmail, canModerate, openAuth }: { view: View; navigate: (view: View) => void; userEmail: string | null; canModerate: boolean; openAuth: () => void }) {
   return <header><button className="brand-button" onClick={() => navigate('overview')} aria-label="VeriSuri overview"><Brand /></button><nav className="desktop-nav" aria-label="Main navigation"><button className={view === 'overview' ? 'active' : ''} onClick={() => navigate('overview')}>Overview</button><button className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Dashboard</button><button className={view === 'reports' ? 'active' : ''} onClick={() => navigate('reports')}>Report lookup</button><button className={view === 'alerts' ? 'active' : ''} onClick={() => navigate('alerts')}>Safety alerts</button><button className={view === 'report' ? 'active' : ''} onClick={() => navigate('report')}>Report incident</button>{canModerate && <button className={view === 'moderation' ? 'active' : ''} onClick={() => navigate('moderation')}>Moderation</button>}</nav><button className="auth-button" onClick={openAuth}>{userEmail ? 'Sign out' : 'Sign in'}</button><button className="alert-button" onClick={() => navigate('alerts')} aria-label="Safety alerts"><Bell size={20} /></button></header>
