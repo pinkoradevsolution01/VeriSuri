@@ -5,6 +5,7 @@ import './styles.css'
 import './production.css'
 import './subscription.css'
 import './free-plan.css'
+import './mobile-pwa.css'
 
 if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', () => {
