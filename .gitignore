@@ -8,5 +8,6 @@ __pycache__/
 .venv/
 backend/models/*.joblib
 backend/data/*.csv
+backend/research/output/
 .sites-checkout/
 .openai/
