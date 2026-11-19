@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 
 export type RiskLevel = 'low' | 'medium' | 'high'
+export type AssessmentExplanation = { category: 'rule' | 'threat_feed' | 'community' | 'model' | 'service' | string; label: string; detail: string; source: string }
 
 export type Assessment = {
   score: number
@@ -8,6 +9,7 @@ export type Assessment = {
   verdict: string
   summary: string
   signals: string[]
+  explanations: AssessmentExplanation[]
   recommendation_title: string
   recommendations: string[]
   engine_version: string

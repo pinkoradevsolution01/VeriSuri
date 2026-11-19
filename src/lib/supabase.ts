@@ -63,6 +63,12 @@ export type ReportSubmission = {
   entityType: ReportEntityType
   entityValue: string
   narrative: string
+  scamType?: 'phishing' | 'investment' | 'marketplace' | 'impersonation' | 'loan' | 'romance' | 'job' | 'delivery' | 'other'
+  paymentProvider?: 'gcash' | 'maya' | 'bank' | 'card' | 'crypto' | 'not_applicable'
+  amountRange?: 'under_1000' | '1000_4999' | '5000_19999' | '20000_99999' | '100000_plus' | 'not_stated'
+  incidentAt?: string
+  incidentChannel?: 'sms' | 'messaging_app' | 'social_media' | 'email' | 'call' | 'website' | 'marketplace' | 'other'
+  redactedEvidence?: string
   privacyNoticeVersion: string
   acknowledgesSafeSubmission: boolean
   trainingConsent: boolean
@@ -73,6 +79,14 @@ export type ModerationReport = {
   id: string
   narrative: string
   created_at: string
+  scam_type: string
+  payment_provider: string
+  amount_range: string
+  incident_at: string | null
+  incident_channel: string
+  redacted_evidence: string | null
+  duplicate_count: number
+  duplicate_of: string | null
   privacy_notice_version: string
   training_consent: boolean
   reported_entities: { entity_type: ReportEntityType; entity_last4: string | null }[]
@@ -91,6 +105,12 @@ export async function submitScamReport(submission: ReportSubmission) {
     p_acknowledged_safe_submission: submission.acknowledgesSafeSubmission,
     p_training_consent: submission.trainingConsent,
     p_redacted_training_sample: submission.trainingConsent ? submission.redactedTrainingSample?.trim() || null : null,
+    p_scam_type: submission.scamType ?? 'other',
+    p_payment_provider: submission.paymentProvider ?? 'not_applicable',
+    p_amount_range: submission.amountRange ?? 'not_stated',
+    p_incident_at: submission.incidentAt || null,
+    p_incident_channel: submission.incidentChannel ?? 'other',
+    p_redacted_evidence: submission.redactedEvidence?.trim() || null,
   })
   if (error) throw error
 }
@@ -99,7 +119,7 @@ export async function getModeratorQueue(): Promise<ModerationReport[]> {
   if (!supabase) throw new Error('Supabase is not configured yet.')
   const { data, error } = await supabase
     .from('scam_reports')
-    .select('id,narrative,created_at,privacy_notice_version,training_consent,reported_entities(entity_type,entity_last4),training_examples(id,text_redacted,status)')
+    .select('id,narrative,created_at,scam_type,payment_provider,amount_range,incident_at,incident_channel,redacted_evidence,duplicate_count,duplicate_of,privacy_notice_version,training_consent,reported_entities(entity_type,entity_last4),training_examples(id,text_redacted,status)')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(50)

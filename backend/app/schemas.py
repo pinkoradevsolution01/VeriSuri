@@ -8,12 +8,21 @@ class RiskLevel(str, Enum):
     high = "high"
 
 
+class AssessmentExplanation(BaseModel):
+    """One human-readable reason contributing to an assessment."""
+    category: str
+    label: str
+    detail: str
+    source: str
+
+
 class Assessment(BaseModel):
     score: int = Field(ge=0, le=100)
     level: RiskLevel
     verdict: str
     summary: str
     signals: list[str] = []
+    explanations: list[AssessmentExplanation] = []
     recommendation_title: str
     recommendations: list[str]
     engine_version: str

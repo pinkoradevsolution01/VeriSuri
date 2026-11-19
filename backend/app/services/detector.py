@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import joblib
-from backend.app.schemas import Assessment, RiskLevel
+from backend.app.schemas import Assessment, AssessmentExplanation, RiskLevel
 from backend.app.services.rules import message_signals
 
 MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "verisuri_v1.joblib"
@@ -63,8 +63,65 @@ def _recommendations(score: int, context: str, target: str | None) -> tuple[str,
     return "Use caution and verify independently.", ["Do not share sensitive information.", "Use official channels to verify unexpected requests.", "Stop if you are pressured to act urgently."]
 
 
+def _explanations(signals: list[str]) -> list[AssessmentExplanation]:
+    """Translate machine/rule signals into attributable plain-language evidence."""
+    explanations: list[AssessmentExplanation] = []
+    for signal in signals:
+        lower = signal.lower()
+        category, label, source = "rule", signal, "VeriSuri local Python rules"
+        if "secret credential" in lower:
+            label = "Requests an OTP, PIN, password, or other secret"
+        elif "account verification" in lower:
+            label = "Requests account verification"
+        elif "urgency" in lower:
+            label = "Uses urgency or pressure"
+        elif "prize or refund" in lower:
+            label = "Uses a prize, cashback, or refund lure"
+        elif "directs the recipient" in lower:
+            label = "Pushes the recipient to open a link"
+        elif "external url" in lower:
+            label = "Contains an external URL"
+        elif "forceful formatting" in lower:
+            label = "Uses unusually forceful formatting"
+        elif "imitate a philippine financial brand" in lower:
+            label = "Possible Philippine financial-brand lookalike"
+        elif "hyphenated domain" in lower:
+            label = "Brand name appears in a hyphenated domain"
+        elif "ip address" in lower:
+            label = "Uses an IP address instead of a domain"
+        elif "valid hostname" in lower:
+            label = "The URL has no valid hostname"
+        elif "does not use https" in lower:
+            label = "The URL does not use HTTPS"
+        elif "@ symbol" in lower:
+            label = "The URL uses an @ symbol that can disguise its destination"
+        elif "deep subdomain" in lower:
+            label = "The URL uses an unusually deep subdomain"
+        elif "higher-risk domain ending" in lower:
+            label = "The URL uses a higher-risk domain ending"
+        elif lower.startswith("phishtank"):
+            category, label, source = "threat_feed", "Matched a known phishing URL", "PhishTank threat feed"
+        elif lower.startswith("cert polska"):
+            category, label, source = "threat_feed", "Matched a known dangerous domain", "CERT Polska threat feed"
+        elif lower.startswith("phishdestroy"):
+            category, label, source = "threat_feed", "Threat intelligence found phishing or scam indicators", "PhishDestroy threat intelligence"
+        elif lower.startswith("google web risk"):
+            category, label, source = "threat_feed", "Matched a Google Web Risk threat category", "Google Web Risk"
+        elif lower.startswith("matched ") and "confirmed community report" in lower:
+            category, label, source = "community", "Matched moderated community report(s)", "VeriSuri moderated community data"
+        elif lower.startswith("no confirmed community report"):
+            category, label, source = "community", "No confirmed community-report match", "VeriSuri moderated community data"
+        elif lower.startswith("custom verisuri text model"):
+            category, label, source = "model", "Approved text model assessment completed", "Approved VeriSuri model"
+        elif "threat feeds could not" in lower:
+            category, label, source = "service", "Live threat feeds were unavailable", "VeriSuri service status"
+        explanations.append(AssessmentExplanation(category=category, label=label, detail=signal, source=source))
+    return explanations
+
+
 def build_assessment(score: int, signals: list[str], version: str, source: str, context: str = "general", target: str | None = None) -> Assessment:
     recommendation_title, recommendations = _recommendations(score, context, target)
-    if score >= 65: return Assessment(score=score, level=RiskLevel.high, verdict="High risk detected", summary="Do not send money or share credentials until independently verified.", signals=signals, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
-    if score >= 30: return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution", summary="Some scam indicators were found. Verify using an official app or number.", signals=signals, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
-    return Assessment(score=score, level=RiskLevel.low, verdict="No strong scam signal found", summary="No strong indicators were found. Continue to verify unfamiliar payment requests.", signals=signals, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
+    explanations = _explanations(signals)
+    if score >= 65: return Assessment(score=score, level=RiskLevel.high, verdict="High risk detected", summary="Do not send money or share credentials until independently verified.", signals=signals, explanations=explanations, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
+    if score >= 30: return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution", summary="Some scam indicators were found. Verify using an official app or number.", signals=signals, explanations=explanations, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
+    return Assessment(score=score, level=RiskLevel.low, verdict="No strong scam signal found", summary="No strong indicators were found. Continue to verify unfamiliar payment requests.", signals=signals, explanations=explanations, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
