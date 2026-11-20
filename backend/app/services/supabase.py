@@ -19,6 +19,12 @@ class WebRiskAuthorization:
     allowed: bool
     reason: str
 
+@dataclass(frozen=True)
+class ExternalThreatObservation:
+    source_name: str
+    source_url: str
+    evidence_status: str
+
 class SupabaseRepository:
     def __init__(self) -> None:
         config = get_settings(); self.url = config.supabase_url; self.key = config.supabase_service_role_key
@@ -33,6 +39,24 @@ class SupabaseRepository:
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(f"{self.url}/rest/v1/reported_entities", headers=headers, params=params); response.raise_for_status()
             return int(response.headers.get("content-range", "*/0").split("/")[-1])
+
+    async def external_url_observation(self, canonical_url: str) -> ExternalThreatObservation | None:
+        """Return a moderator-curated, expiring reported-source observation."""
+        if not self.enabled:
+            return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        params = {"select": "source_name,source_url,evidence_status", "canonical_url": f"eq.{canonical_url}", "evidence_status": "in.(reported,confirmed)", "expires_at": f"gt.{datetime.now(UTC).isoformat()}", "limit": "1"}
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self.url}/rest/v1/external_threat_observations", headers=headers, params=params)
+                response.raise_for_status()
+                rows = response.json()
+                if not rows:
+                    return None
+                row = rows[0]
+                return ExternalThreatObservation(source_name=str(row["source_name"]), source_url=str(row["source_url"]), evidence_status=str(row["evidence_status"]))
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return None
 
     async def user_id_from_access_token(self, access_token: str | None) -> str | None:
         if not self.enabled or not access_token:

@@ -273,6 +273,22 @@ export async function createModeratedAlert(draft: ModeratedAlertDraft) {
   if (error) throw error
 }
 
+export async function createExternalThreatObservation(draft: { targetUrl: string; sourceName: string; sourceUrl: string; expiresAt: string }) {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+  let canonicalUrl: string
+  try {
+    const target = new URL(draft.targetUrl.trim().includes('://') ? draft.targetUrl.trim() : `https://${draft.targetUrl.trim()}`)
+    if (!['http:', 'https:'].includes(target.protocol)) throw new Error('Use an HTTP or HTTPS suspicious URL.')
+    canonicalUrl = target.toString()
+    const source = new URL(draft.sourceUrl.trim())
+    if (source.protocol !== 'https:') throw new Error('Use an HTTPS source URL.')
+  } catch (error) { throw error instanceof Error ? error : new Error('Use valid URLs.') }
+  const { error } = await supabase.rpc('create_external_threat_observation', {
+    p_canonical_url: canonicalUrl, p_source_name: draft.sourceName.trim(), p_source_url: draft.sourceUrl.trim(), p_expires_at: draft.expiresAt,
+  })
+  if (error) throw error
+}
+
 export async function getPendingModeratedAlerts(): Promise<ModerationAlert[]> {
   if (!supabase) throw new Error('Supabase is not configured yet.')
   const { data, error } = await supabase.from('fraud_alerts')

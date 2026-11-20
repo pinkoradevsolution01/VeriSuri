@@ -32,6 +32,7 @@ The root [`pyproject.toml`](pyproject.toml) requires Python 3.12 exactly, and [`
 
 1. Apply [schema.sql](supabase/schema.sql) in the Supabase SQL editor.
 2. Apply [20261116_production_readiness.sql](supabase/migrations/20261116_production_readiness.sql) immediately after it. This installs the consent-recording, profile, moderation, and deletion-request workflow used by the PWA.
+   Then apply [20261120_account_security.sql](supabase/migrations/20261120_account_security.sql) and [20261120_external_threat_observations.sql](supabase/migrations/20261120_external_threat_observations.sql). They enforce MFA for staff actions and add expiring, reported-source URL observations.
 3. Put `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `GOOGLE_WEB_RISK_API_KEY` in Vercel server environment variables only—never client `VITE_` variables.
 4. Train `backend/train.py` only on permissioned labelled Filipino, English, and Taglish messages. Model artifacts are deliberately ignored by Git.
 5. Configure Google/Facebook Auth redirect URLs in Supabase, appoint moderators, and assign each moderator or admin a role in `public.profiles`.

@@ -20,6 +20,12 @@ class SafetyPolicyTests(unittest.TestCase):
         self.assertEqual(result.evidence_confidence, "high")
         self.assertIn("High-confidence", result.verdict)
 
+    def test_external_report_is_moderate_not_confirmed_evidence(self):
+        result = build_assessment(40, ["External source reported this URL as suspicious; pending independent verification (PhishTank)"], "verisuri-rules-v1", "external-reported-source", "link")
+        self.assertEqual(result.level.value, "medium")
+        self.assertEqual(result.evidence_confidence, "moderate")
+        self.assertEqual(result.verdict, "Use caution")
+
     def test_training_row_requires_moderation_reference(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "candidate.csv"

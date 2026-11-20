@@ -126,7 +126,7 @@ def _evidence_confidence(signals: list[str]) -> str:
     evidence = " ".join(signals).casefold()
     if any(marker in evidence for marker in ("phishtank matched", "cert polska matched", "google web risk matched", "confirmed community report")):
         return "high"
-    if any(marker in evidence for marker in ("phishdestroy matched", "phishdestroy found", "approved verisuri", "custom verisuri text model")):
+    if any(marker in evidence for marker in ("phishdestroy matched", "phishdestroy found", "external source reported", "approved verisuri", "custom verisuri text model")):
         return "moderate"
     return "limited"
 

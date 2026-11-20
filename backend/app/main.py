@@ -13,7 +13,7 @@ from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
 from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
-from backend.app.services.url_intelligence import extract_url, inspect_url
+from backend.app.services.url_intelligence import extract_url, inspect_url, normalize_url
 
 detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -75,6 +75,11 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
         assessment = build_assessment(score, signals, detector.version, "python-url-rules", "link", submitted_url)
         assessment.link_intelligence = intelligence
         return assessment
+    _, canonical_url = normalize_url(submitted_url)
+    external_observation = await repository.external_url_observation(canonical_url)
+    if external_observation:
+        signals.append(f"External source reported this URL as suspicious; pending independent verification ({external_observation.source_name})")
+        score = max(score, 40)
     if intelligence.redirect_hosts:
         signals.append(f"Server-side redirect chain: {' → '.join(intelligence.redirect_hosts)}")
     if not intelligence.official_domain and intelligence.canonical_host and intelligence.canonical_host.startswith("xn--"):
@@ -83,7 +88,7 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     signals.extend(feed_result.signals)
     score = max(score, feed_result.score)
     unsafe, threat_types = None, []
-    source = feed_result.source
+    source = f"{feed_result.source}+external-reported-source" if external_observation else feed_result.source
     # Google Web Risk remains implemented for a later billing-enabled release.
     # The zero-fee feeds and Python engine are the default starting architecture.
     if web_risk.enabled:

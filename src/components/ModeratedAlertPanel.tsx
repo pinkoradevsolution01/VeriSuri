@@ -1,6 +1,6 @@
 import { ExternalLink, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { createModeratedAlert, getPendingModeratedAlerts, reviewModeratedAlert, type ModeratedAlertDraft, type ModerationAlert } from '../lib/supabase'
+import { createExternalThreatObservation, createModeratedAlert, getPendingModeratedAlerts, reviewModeratedAlert, type ModeratedAlertDraft, type ModerationAlert } from '../lib/supabase'
 
 const dateForInput = (days: number) => {
   const value = new Date(Date.now() + days * 86_400_000)
@@ -9,6 +9,28 @@ const dateForInput = (days: number) => {
 }
 
 const initialDraft = (): ModeratedAlertDraft => ({ title: '', summary: '', severity: 'medium', sourceName: '', sourceUrl: '', affectedPlatform: '', region: '', reviewAt: dateForInput(14), expiresAt: dateForInput(30) })
+
+function ExternalThreatObservationForm() {
+  const [targetUrl, setTargetUrl] = useState('')
+  const [sourceName, setSourceName] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [expiresAt, setExpiresAt] = useState(dateForInput(14))
+  const [notice, setNotice] = useState('')
+  const [loading, setLoading] = useState(false)
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault(); setNotice(''); setLoading(true)
+    try { await createExternalThreatObservation({ targetUrl, sourceName, sourceUrl, expiresAt }); setTargetUrl(''); setSourceName(''); setSourceUrl(''); setExpiresAt(dateForInput(14)); setNotice('Reported-source observation saved. It will show only as cautionary evidence and will expire automatically.') }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save the reported-source observation.') }
+    finally { setLoading(false) }
+  }
+  return <details><summary>Record an externally reported suspicious URL</summary><p className="reported-source-note">Use this only after reviewing a credible source. It creates moderate-confidence caution, never a confirmed-scam verdict.</p><form className="alert-draft-form" onSubmit={submit}>
+    <label className="wide">Suspicious URL<input value={targetUrl} onChange={event => setTargetUrl(event.target.value)} placeholder="https://example.com/path" required /></label>
+    <label>Source name<input value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="PhishTank" required /></label>
+    <label>Source HTTPS URL<input type="url" value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="https://…" required /></label>
+    <label>Expires at<input type="datetime-local" value={expiresAt} onChange={event => setExpiresAt(event.target.value)} required /></label>
+    <button className="secondary-action wide" disabled={loading}>{loading ? 'Saving…' : 'Record reported source'}</button>
+  </form>{notice && <p className="privacy-note" role="status">{notice}</p>}</details>
+}
 
 export function ModeratedAlertPanel() {
   const [draft, setDraft] = useState<ModeratedAlertDraft>(initialDraft)
@@ -40,6 +62,7 @@ export function ModeratedAlertPanel() {
       <label>Expires at<input type="datetime-local" value={draft.expiresAt} onChange={event => update('expiresAt', event.target.value)} required /></label>
       <button className="primary-action wide" disabled={loading}>{loading ? 'Saving…' : 'Submit for verification'}</button>
     </form></details>
+    <ExternalThreatObservationForm />
     <div className="pending-advisories"><h3>Pending verification</h3>{items.length ? items.map(item => <article key={item.id}><div><span>{item.severity} risk</span><h4>{item.title}</h4><p>{item.summary}</p><small>{item.sourceName} · {item.affectedPlatform} · review {new Date(item.reviewAt).toLocaleDateString()}</small><a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Open official source <ExternalLink size={13} /></a></div><div className="moderation-actions"><button disabled={loading} onClick={() => decide(item.id, 'rejected')}>Reject</button><button className="approve" disabled={loading} onClick={() => decide(item.id, 'verified')}>Verify &amp; publish</button></div></article>) : <p className="empty-state">No advisories are awaiting verification.</p>}</div>
     {notice && <p className="privacy-note" role="status">{notice}</p>}
   </section>
