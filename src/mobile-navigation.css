@@ -1,0 +1,47 @@
+/* The mobile navigation deliberately exposes only useful destinations. The
+   More sheet contains the full working route map without crowding the header. */
+.mobile-nav-overlay{display:none}
+
+@media(max-width:900px){
+  :root{--verisuri-header-height:68px}
+  .desktop-nav,.security-button,.alert-button{display:none!important}
+  .app-canvas header{height:var(--verisuri-header-height);padding-left:18px;padding-right:18px}
+  .brand-button{margin-right:auto}
+  .app-shell{padding-bottom:calc(94px + env(safe-area-inset-bottom))}
+  .screen,.tool-screen{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
+  .overview-page{padding-bottom:calc(116px + env(safe-area-inset-bottom))}
+  .bottom-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;align-items:center;bottom:0;width:min(620px,calc(100% - 16px));height:calc(64px + env(safe-area-inset-bottom));padding:7px 6px max(7px,env(safe-area-inset-bottom));border-radius:18px 18px 0 0;z-index:70}
+  .bottom-nav button{min-width:0;min-height:48px;padding:4px 2px;font-size:10px;line-height:1.15}
+  .bottom-nav svg{width:19px;height:19px}
+  .mobile-nav-overlay{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;padding:20px 12px calc(82px + env(safe-area-inset-bottom));background:#010911cc;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .mobile-nav-sheet{width:min(620px,100%);max-height:min(78dvh,660px);overflow-y:auto;padding:20px;border:1px solid #36e5e66b;border-radius:20px;background:linear-gradient(150deg,#09394c,#031724);box-shadow:0 24px 70px #000c}
+  .mobile-nav-sheet-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding-bottom:16px;border-bottom:1px solid #2d68768a}
+  .mobile-nav-sheet-header .eyebrow{margin-bottom:4px}
+  .mobile-nav-sheet-header h2{font-size:20px;letter-spacing:-.5px}
+  .mobile-nav-close{display:grid;place-items:center;width:42px;height:42px;flex:none;border:1px solid #397787;border-radius:10px;background:#062737;color:#dbffff}
+  .mobile-nav-close:hover{border-color:#35eeee;color:#35eeee}
+  .mobile-nav-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px;padding-top:18px}
+  .mobile-nav-links>div{display:grid;gap:7px;align-content:start}
+  .mobile-nav-links p{margin:0 0 2px;color:#85c8cf;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+  .mobile-nav-links button{min-height:44px;padding:10px 12px;border:1px solid #286477;border-radius:10px;background:#062737;color:#e8ffff;text-align:left;font-size:14px;font-weight:700}
+  .mobile-nav-links button:hover{border-color:#34ebec;background:#08394b}
+  .auth-overlay,.a11y-overlay{z-index:100}
+}
+
+@media(max-width:720px){
+  :root{--verisuri-header-height:calc(64px + env(safe-area-inset-top))}
+  .app-canvas header{height:var(--verisuri-header-height);padding:env(safe-area-inset-top) 12px 0;gap:6px}
+  .a11y-open{width:38px;height:38px;margin:0 2px 0 0}
+  .auth-button{padding:8px 9px;font-size:12px;white-space:nowrap}
+  .mobile-nav-sheet{padding:18px 16px;border-radius:18px}
+}
+
+@media(max-width:390px){
+  .bottom-nav{width:calc(100% - 10px);padding-left:3px;padding-right:3px}
+  .bottom-nav button{font-size:9px}
+  .bottom-nav svg{width:18px;height:18px}
+  .mobile-nav-links{grid-template-columns:1fr}
+  .mobile-nav-sheet{max-height:76dvh}
+}
+
+@media(prefers-reduced-motion:reduce){.mobile-nav-overlay,.mobile-nav-sheet{transition:none}}
