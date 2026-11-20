@@ -40,8 +40,140 @@ export async function sendMagicLink(email: string) {
 
 export async function signOut() {
   if (!supabase) return
-  const { error } = await supabase.auth.signOut()
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
   if (error) throw error
+}
+
+export type MfaFactor = { id: string; friendlyName: string | null; createdAt: string | null; status: string }
+export type AccountSecurityState = {
+  currentLevel: string | null
+  nextLevel: string | null
+  factors: MfaFactor[]
+}
+export type MfaEnrollment = { factorId: string; qrCode: string; secret: string }
+export type RecognizedDevice = { id: string; device_name: string; last_seen_at: string; created_at: string }
+export type SecurityEvent = { id: string; event_type: string; details: string | null; created_at: string }
+
+async function requireCurrentUser() {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error) throw error
+  if (!user) throw new Error('Please sign in to manage account security.')
+  return user
+}
+
+function currentDeviceName() {
+  const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  if (/iPhone|iPad|iPod/i.test(agent)) return 'Apple mobile browser'
+  if (/Android/i.test(agent)) return 'Android browser'
+  if (/Macintosh/i.test(agent)) return 'Mac browser'
+  if (/Windows/i.test(agent)) return 'Windows browser'
+  return 'Browser session'
+}
+
+function deviceFingerprint() {
+  const storageKey = 'verisuri-device-fingerprint'
+  try {
+    const saved = window.localStorage.getItem(storageKey)
+    if (saved) return saved
+    const next = crypto.randomUUID()
+    window.localStorage.setItem(storageKey, next)
+    return next
+  } catch {
+    return `temporary-${crypto.randomUUID()}`
+  }
+}
+
+export async function getAccountSecurityState(): Promise<AccountSecurityState> {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const [{ data: assurance, error: assuranceError }, { data: factors, error: factorsError }] = await Promise.all([
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    supabase.auth.mfa.listFactors(),
+  ])
+  if (assuranceError) throw assuranceError
+  if (factorsError) throw factorsError
+  return {
+    currentLevel: assurance?.currentLevel ?? null,
+    nextLevel: assurance?.nextLevel ?? null,
+    factors: (factors?.totp ?? []).map(factor => ({ id: factor.id, friendlyName: factor.friendly_name ?? null, createdAt: factor.created_at ?? null, status: factor.status })),
+  }
+}
+
+export async function beginMfaEnrollment(): Promise<MfaEnrollment> {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'VeriSuri authenticator' })
+  if (error) throw error
+  if (!data?.totp) throw new Error('Authenticator enrollment could not be started.')
+  void recordSecurityEvent('mfa_enrollment_started', 'Authenticator-app setup started').catch(() => undefined)
+  return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret }
+}
+
+export async function verifyMfaEnrollment(factorId: string, code: string) {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: code.trim() })
+  if (error) throw error
+  void recordSecurityEvent('mfa_enabled', 'Authenticator-app MFA enabled').catch(() => undefined)
+}
+
+export async function completeMfaChallenge(factorId: string, code: string) {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: code.trim() })
+  if (error) throw error
+  void recordSecurityEvent('mfa_challenge_completed', 'Authenticator challenge completed for this session').catch(() => undefined)
+}
+
+export async function disableMfaFactor(factorId: string) {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.auth.mfa.unenroll({ factorId })
+  if (error) throw error
+  void recordSecurityEvent('mfa_disabled', 'Authenticator-app MFA disabled').catch(() => undefined)
+}
+
+export async function endOtherSessions() {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.auth.signOut({ scope: 'others' })
+  if (error) throw error
+  void recordSecurityEvent('other_sessions_ended', 'Other sessions were signed out').catch(() => undefined)
+}
+
+export async function recordSecurityEvent(eventType: string, details?: string) {
+  if (!supabase) return
+  const user = await requireCurrentUser()
+  const { error } = await supabase.from('account_security_events').insert({ user_id: user.id, event_type: eventType, details: details ?? null })
+  if (error) throw error
+}
+
+export async function registerCurrentDevice() {
+  if (!supabase) return
+  const user = await requireCurrentUser()
+  const { error } = await supabase.from('recognized_devices').upsert({
+    user_id: user.id,
+    device_fingerprint: deviceFingerprint(),
+    device_name: currentDeviceName(),
+    last_seen_at: new Date().toISOString(),
+  }, { onConflict: 'user_id,device_fingerprint' })
+  if (error) throw error
+}
+
+export async function getRecognizedDevices(): Promise<RecognizedDevice[]> {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data, error } = await supabase.from('recognized_devices').select('id,device_name,last_seen_at,created_at').order('last_seen_at', { ascending: false }).limit(20)
+  if (error) throw error
+  return (data ?? []) as RecognizedDevice[]
+}
+
+export async function removeRecognizedDevice(id: string) {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { error } = await supabase.from('recognized_devices').delete().eq('id', id)
+  if (error) throw error
+  void recordSecurityEvent('device_record_removed', 'A recognized device record was removed').catch(() => undefined)
+}
+
+export async function getSecurityEvents(): Promise<SecurityEvent[]> {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data, error } = await supabase.from('account_security_events').select('id,event_type,details,created_at').order('created_at', { ascending: false }).limit(20)
+  if (error) throw error
+  return (data ?? []) as SecurityEvent[]
 }
 
 export async function signInWithProvider(provider: 'google' | 'facebook') {
