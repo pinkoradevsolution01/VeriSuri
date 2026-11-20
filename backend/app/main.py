@@ -13,7 +13,7 @@ from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
 from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
-from backend.app.services.url_intelligence import inspect_url
+from backend.app.services.url_intelligence import extract_url, inspect_url
 
 detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -66,13 +66,20 @@ async def analyze_message(payload: MessageRequest) -> Assessment: return detecto
 
 @app.post("/api/v1/analyze/link", response_model=Assessment)
 async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
-    signals, score = url_signals(payload.url)
-    intelligence = await inspect_url(payload.url)
+    submitted_url, extracted_from_text = extract_url(payload.url)
+    signals, score = url_signals(submitted_url)
+    if extracted_from_text:
+        signals.insert(0, "A URL was extracted from pasted text; review the canonical host below")
+    intelligence = await inspect_url(submitted_url)
+    if not intelligence.canonical_host:
+        assessment = build_assessment(score, signals, detector.version, "python-url-rules", "link", submitted_url)
+        assessment.link_intelligence = intelligence
+        return assessment
     if intelligence.redirect_hosts:
         signals.append(f"Server-side redirect chain: {' → '.join(intelligence.redirect_hosts)}")
     if not intelligence.official_domain and intelligence.canonical_host and intelligence.canonical_host.startswith("xn--"):
         signals.append("Uses a punycode domain that can imitate familiar characters"); score = max(score, 55)
-    feed_result = await threat_feeds.lookup(payload.url)
+    feed_result = await threat_feeds.lookup(submitted_url)
     signals.extend(feed_result.signals)
     score = max(score, feed_result.score)
     unsafe, threat_types = None, []
@@ -85,7 +92,7 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
         if not user_id:
             signals.append("Sign in to use subscription URL scans; local URL rules were used")
         else:
-            authorization = await repository.authorize_web_risk_scan(user_id, payload.url)
+            authorization = await repository.authorize_web_risk_scan(user_id, submitted_url)
             if authorization is None:
                 signals.append("URL-scan safety service is unavailable; local URL rules were used")
             elif not authorization.allowed:
@@ -97,14 +104,14 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
                 elif not quota.allowed:
                     signals.append(f"{quota.reason}. Local URL rules were used")
                 else:
-                    unsafe, threat_types = await web_risk.lookup(payload.url)
+                    unsafe, threat_types = await web_risk.lookup(submitted_url)
                     if unsafe is None:
                         signals.append("Google Web Risk is unavailable; zero-fee feeds and local Python rules were used")
                     else:
                         source = "google-web-risk+zero-fee-threat-feeds+python-rules"
                         signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
-    assessment = build_assessment(score, signals, detector.version, source, "link", payload.url)
+    assessment = build_assessment(score, signals, detector.version, source, "link", submitted_url)
     assessment.link_intelligence = intelligence
     return assessment
 

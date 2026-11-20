@@ -72,14 +72,14 @@ function Tool({ type, navigate }: { type: 'pay' | 'message' | 'link' | 'reports'
   const [result, setResult] = useState<Assessment | null>(null)
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
-  const labels = { pay: ['Before You Pay', 'Enter a GCash, Maya, or bank payment identifier.'], message: ['AI Message Analysis', 'Paste a message to identify scam signals.'], link: ['Suspicious Link Checker', 'Check a link before opening it.'], reports: ['Scam Reports Lookup', 'Search reviewed community reports before you pay.'] } as const
+  const labels = { pay: ['Before You Pay', 'Enter a GCash, Maya, or bank payment identifier.'], message: ['AI Message Analysis', 'Paste a message to identify scam signals.'], link: ['Suspicious Link Checker', 'Paste a link or a message containing one link.'], reports: ['Scam Reports Lookup', 'Search reviewed community reports before you pay.'] } as const
   const entityTypes = type === 'pay' ? ['gcash', 'maya', 'bank'] : ['gcash', 'maya', 'bank', 'phone']
   const run = async () => { if (!value.trim()) return; setLoading(true); setNotice(''); try { setResult(await analyzeFeature(type, value, entityType)) } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to check this item.') } finally { setLoading(false) } }
   return <main className="screen tool-screen">
     <button className="back" onClick={() => navigate('home')}>Back to dashboard</button>
     <div className="tool-heading"><span className="tool-icon">{type === 'message' ? <MessageSquareText /> : type === 'link' ? <Link2 /> : type === 'reports' ? <ClipboardList /> : <ShieldCheck />}</span><h1>{labels[type][0]}</h1><p>{labels[type][1]}</p></div>
     {(type === 'pay' || type === 'reports') && <div className="type-tabs">{entityTypes.map(item => <button key={item} className={entityType === item ? 'active' : ''} onClick={() => setEntityType(item)}>{item}</button>)}</div>}
-    <label className="input-label" htmlFor="check-value">{type === 'message' ? 'Message to analyze' : type === 'link' ? 'Link to check' : 'Identifier to check'}</label>
+    <label className="input-label" htmlFor="check-value">{type === 'message' ? 'Message to analyze' : type === 'link' ? 'Link or message to check' : 'Identifier to check'}</label>
     <div className="field message-field"><textarea id="check-value" rows={type === 'message' ? 6 : 2} value={value} onChange={event => setValue(event.target.value)} placeholder={samples[type]} /><button onClick={run} aria-label="Run check" disabled={loading}><Search /></button></div>
     <button className="primary-action" onClick={run} disabled={loading}>{loading ? 'Checking...' : type === 'reports' ? 'Search scam reports' : 'Run safety check'} <ChevronRight size={18} /></button>
     {notice && <p className="form-error">{notice}</p>}

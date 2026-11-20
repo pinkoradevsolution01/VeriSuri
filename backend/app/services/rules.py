@@ -1,5 +1,6 @@
 import re
 from urllib.parse import urlparse
+from backend.app.services.url_intelligence import is_official_domain
 
 SCAM_PATTERNS: list[tuple[re.Pattern[str], str, int]] = [
     (re.compile(r"\b(verify|verification|validate)\b.{0,35}\b(account|gcash|maya|bank)\b", re.I), "Requests account verification", 22),
@@ -36,8 +37,14 @@ def message_signals(text: str) -> tuple[list[str], int]:
     return signals, score
 
 def url_signals(raw_url: str) -> tuple[list[str], int]:
-    parsed = urlparse(raw_url if "://" in raw_url else f"https://{raw_url}")
+    try:
+        parsed = urlparse(raw_url if "://" in raw_url else f"https://{raw_url}")
+        _ = parsed.port
+    except ValueError:
+        return ["The URL has no valid hostname"], 90
     hostname = (parsed.hostname or "").lower()
+    try: hostname = hostname.encode("idna").decode("ascii")
+    except UnicodeError: pass
     signals, score = [], 0
     if not hostname: return ["The URL has no valid hostname"], 90
     if parsed.scheme != "https": signals.append("Does not use HTTPS"); score += 22
@@ -46,7 +53,6 @@ def url_signals(raw_url: str) -> tuple[list[str], int]:
     labels = hostname.split(".")
     if len(labels) > 4: signals.append("Uses an unusually deep subdomain"); score += 14
     if labels and labels[-1] in SUSPICIOUS_TLDS: signals.append("Uses a higher-risk domain ending"); score += 15
-    official = ("gcash.com", "maya.ph", "bpi.com.ph", "bdo.com.ph", "metrobank.com.ph", "unionbankph.com")
-    if any(term in hostname for term in BRAND_TERMS) and not hostname.endswith(official): signals.append("May imitate a Philippine financial brand"); score += 38
+    if any(term in hostname for term in BRAND_TERMS) and not is_official_domain(hostname): signals.append("May imitate a Philippine financial brand"); score += 38
     if "-" in hostname and any(term in hostname for term in BRAND_TERMS): signals.append("Uses a brand name in a hyphenated domain"); score += 15
     return signals, min(score, 100)

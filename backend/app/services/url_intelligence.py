@@ -1,19 +1,40 @@
 """Server-side URL intelligence. It never sends the user browser to a submitted link."""
 from __future__ import annotations
-import asyncio, ipaddress, socket
+import asyncio, ipaddress, re, socket
 from datetime import UTC, datetime
 from urllib.parse import urlsplit, urlunsplit
 import httpx
 from backend.app.schemas import LinkIntelligence
 
 OFFICIAL_DOMAINS = ("gcash.com", "maya.ph", "bpi.com.ph", "bdo.com.ph", "metrobank.com.ph", "unionbankph.com")
+URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", re.IGNORECASE)
+
+def extract_url(value: str) -> tuple[str, bool]:
+    """Accept a pasted URL or extract one safely from a copied message."""
+    raw = value.strip()
+    match = URL_IN_TEXT.search(raw)
+    if match:
+        candidate = match.group(0).rstrip(".,;:!)]}'\"")
+        return candidate, candidate != raw
+    return raw, False
+
+def is_official_domain(host: str) -> bool:
+    return any(host == domain or host.endswith(f".{domain}") for domain in OFFICIAL_DOMAINS)
 
 def normalize_url(value: str) -> tuple[str, str]:
-    parsed = urlsplit(value.strip() if "://" in value else f"https://{value.strip()}")
+    raw = value.strip()
+    try:
+        parsed = urlsplit(raw if "://" in raw else f"https://{raw}")
+    except ValueError:
+        return "", ""
     host = (parsed.hostname or "").lower().rstrip(".")
     try: host = host.encode("idna").decode("ascii")
     except UnicodeError: pass
-    port = f":{parsed.port}" if parsed.port and parsed.port not in (80, 443) else ""
+    try:
+        port_number = parsed.port
+    except ValueError:
+        return "", ""
+    port = f":{port_number}" if port_number and port_number not in (80, 443) else ""
     return host, urlunsplit((parsed.scheme.lower() or "https", f"{host}{port}", parsed.path or "/", parsed.query, ""))
 
 async def _public_host(host: str) -> bool:
@@ -25,7 +46,7 @@ async def _public_host(host: str) -> bool:
 
 async def inspect_url(raw_url: str) -> LinkIntelligence:
     host, canonical = normalize_url(raw_url)
-    official = any(host == domain or host.endswith(f".{domain}") for domain in OFFICIAL_DOMAINS)
+    official = is_official_domain(host)
     notes: list[str] = ["Canonical URL was normalized on the server; the submitted link was not opened in your browser."]
     if host.startswith("xn--"): notes.append("Internationalized (punycode) domain detected; inspect the destination carefully.")
     if official: notes.append("Host matches VeriSuri's official-domain allowlist.")
