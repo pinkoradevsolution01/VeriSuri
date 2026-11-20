@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     enable_phishdestroy: bool = True
     phishdestroy_cache_minutes: int = 15
     phishdestroy_requests_per_minute: int = 30
+    api_rate_limit_per_minute: int = 45
+    api_max_request_bytes: int = 25_000
+    security_monitoring_salt: str = "development-only-change-in-production"
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 

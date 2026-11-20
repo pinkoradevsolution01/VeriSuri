@@ -1,6 +1,12 @@
+import logging
+import time
+import uuid
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from backend.app.config import get_settings
+from backend.app.monitoring import RequestRateLimiter, fingerprint_client, security_log
 from backend.app.schemas import AlertItem, Assessment, LinkRequest, MessageRequest, PaymentRequest, ReportLookupRequest, ScamReportCreate
 from backend.app.services.detector import HybridDetector, build_assessment
 from backend.app.services.rules import url_signals
@@ -12,6 +18,36 @@ from backend.app.services.url_intelligence import inspect_url
 detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().origins, allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
+rate_limiter = RequestRateLimiter(get_settings().api_rate_limit_per_minute)
+api_log = logging.getLogger("verisuri.api")
+
+
+@app.middleware("http")
+async def monitor_and_limit(request: Request, call_next):
+    """Add request IDs and safely observe abuse/errors without request content."""
+    request_id = uuid.uuid4().hex
+    started = time.perf_counter()
+    path = request.url.path
+    client = request.client.host if request.client else "unknown"
+    client_fingerprint = fingerprint_client(client, get_settings().security_monitoring_salt)
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > get_settings().api_max_request_bytes:
+        security_log.warning("security_event=request_too_large request_id=%s client=%s path=%s", request_id, client_fingerprint, path)
+        return JSONResponse({"detail": "Request is too large.", "request_id": request_id}, status_code=413)
+    if request.method == "POST" and path.startswith("/api/v1/"):
+        allowed, retry_after = rate_limiter.allow(client_fingerprint, path)
+        if not allowed:
+            security_log.warning("security_event=rate_limited request_id=%s client=%s path=%s", request_id, client_fingerprint, path)
+            return JSONResponse({"detail": "Too many requests. Please try again shortly.", "request_id": request_id}, status_code=429, headers={"Retry-After": str(retry_after)})
+    try:
+        response = await call_next(request)
+    except Exception:
+        security_log.exception("security_event=unhandled_error request_id=%s path=%s", request_id, path)
+        return JSONResponse({"detail": "A temporary service error occurred.", "request_id": request_id}, status_code=500)
+    response.headers["X-Request-ID"] = request_id
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    api_log.info("api_request request_id=%s path=%s status=%s duration_ms=%s", request_id, path, response.status_code, duration_ms)
+    return response
 
 @app.get("/api/v1/health")
 async def health() -> dict[str, str | bool]:
