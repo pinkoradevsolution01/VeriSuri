@@ -4,9 +4,10 @@
 
 @media(max-width:900px){
   :root{--verisuri-header-height:68px}
-  .desktop-nav,.security-button,.alert-button{display:none!important}
+  .desktop-nav,.security-button,.alert-button,.a11y-open{display:none!important}
   .app-canvas header{height:var(--verisuri-header-height);padding-left:18px;padding-right:18px}
   .brand-button{margin-right:auto}
+  .auth-button{margin-left:auto}
   .app-shell{padding-bottom:calc(94px + env(safe-area-inset-bottom))}
   .screen,.tool-screen{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
   .overview-page{padding-bottom:calc(116px + env(safe-area-inset-bottom))}

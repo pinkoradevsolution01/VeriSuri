@@ -23,6 +23,11 @@ export function AccessibilityControls() {
     } catch { /* Accessibility preferences remain optional. */ }
   }, [])
   useEffect(() => {
+    const open = () => setOpen(true)
+    window.addEventListener('verisuri:open-accessibility', open)
+    return () => window.removeEventListener('verisuri:open-accessibility', open)
+  }, [])
+  useEffect(() => {
     apply(preferences)
     try { window.localStorage.setItem(storageKey, JSON.stringify(preferences)) } catch { /* Private mode may block storage. */ }
   }, [preferences])

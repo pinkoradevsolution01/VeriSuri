@@ -22,7 +22,6 @@ import './vault.css'
 import './alerts-preview.css'
 import './account-security.css'
 import './accessibility.css'
-import './mobile-navigation.css'
 import { ArrowDown, Bell, BrainCircuit, ChevronRight, ClipboardList, Database, Flag, Home as HomeIcon, Link2, Menu, MessageSquareText, Search, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 import { analyzeFeature, getAlerts, type Alert, type Assessment } from './lib/api'
 import { chooseSubscriptionPlan, getModeratorQueue, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
@@ -203,6 +202,7 @@ function BottomNav({ view, navigate, signedIn, canModerate }: { view: View; navi
           <div><p>Explore</p><button onClick={() => go('overview')}>Overview</button><button onClick={() => go('home')}>Dashboard</button></div>
           <div><p>Protection tools</p><button onClick={() => go('pay')}>Before You Pay</button><button onClick={() => go('message')}>AI Message Analysis</button><button onClick={() => go('link')}>Suspicious Link Checker</button><button onClick={() => go('reports')}>Scam Reports Lookup</button></div>
           <div><p>Get help</p><button onClick={() => go('report')}>Report an incident</button><button onClick={() => go('recovery')}>I sent money or shared an OTP</button><button onClick={() => go('vault')}>Evidence Vault</button><button onClick={() => go('alerts')}>Safety alerts</button></div>
+          <div><p>Settings</p><button onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('verisuri:open-accessibility')) }}>Accessibility settings</button></div>
           {(signedIn || canModerate) && <div><p>Account</p>{signedIn && <button onClick={() => go('security')}>Account security</button>}{canModerate && <button onClick={() => go('moderation')}>Moderation</button>}</div>}
         </nav>
       </section>
