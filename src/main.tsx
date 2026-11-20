@@ -6,6 +6,7 @@ import './production.css'
 import './subscription.css'
 import './free-plan.css'
 import './mobile-pwa.css'
+import './responsive-shell.css'
 
 if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', () => {
