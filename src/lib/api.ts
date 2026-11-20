@@ -15,6 +15,9 @@ export type Assessment = {
   highlights: HighlightedSignal[]
   calibrated_scam_probability: number | null
   confidence_basis: string | null
+  evidence_confidence: 'high' | 'moderate' | 'limited'
+  verification_required: boolean
+  verification_message: string
   link_intelligence: LinkIntelligence | null
   recommendation_title: string
   recommendations: string[]

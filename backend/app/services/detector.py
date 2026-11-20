@@ -122,10 +122,23 @@ def _explanations(signals: list[str]) -> list[AssessmentExplanation]:
     return explanations
 
 
+def _evidence_confidence(signals: list[str]) -> str:
+    evidence = " ".join(signals).casefold()
+    if any(marker in evidence for marker in ("phishtank matched", "cert polska matched", "google web risk matched", "confirmed community report")):
+        return "high"
+    if any(marker in evidence for marker in ("phishdestroy matched", "phishdestroy found", "approved verisuri", "custom verisuri text model")):
+        return "moderate"
+    return "limited"
+
+
 def build_assessment(score: int, signals: list[str], version: str, source: str, context: str = "general", target: str | None = None, highlights: list[HighlightedSignal] | None = None, calibrated_scam_probability: int | None = None, confidence_basis: str | None = None) -> Assessment:
     recommendation_title, recommendations = _recommendations(score, context, target)
     explanations = _explanations(signals)
-    fields = dict(signals=signals, explanations=explanations, highlights=highlights or [], calibrated_scam_probability=calibrated_scam_probability, confidence_basis=confidence_basis, recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
-    if score >= 65: return Assessment(score=score, level=RiskLevel.high, verdict="High risk detected", summary="Do not send money or share credentials until independently verified.", **fields)
-    if score >= 30: return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution", summary="Some scam indicators were found. Verify using an official app or number.", **fields)
-    return Assessment(score=score, level=RiskLevel.low, verdict="No strong scam signal found", summary="No strong indicators were found. Continue to verify unfamiliar payment requests.", **fields)
+    evidence_confidence = _evidence_confidence(signals)
+    fields = dict(signals=signals, explanations=explanations, highlights=highlights or [], calibrated_scam_probability=calibrated_scam_probability, confidence_basis=confidence_basis, evidence_confidence=evidence_confidence, verification_required=True, verification_message="Verify independently through an official app, website you type yourself, or known provider contact before acting.", recommendation_title=recommendation_title, recommendations=recommendations, engine_version=version, source=source)
+    if score >= 65:
+        title = "High-confidence risk evidence found" if evidence_confidence == "high" else "High risk indicators found"
+        return Assessment(score=score, level=RiskLevel.high, verdict=title, summary="Do not send money or share credentials until independently verified.", **fields)
+    if score >= 30:
+        return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution", summary="Some scam indicators were found. Verify using an official app or number.", **fields)
+    return Assessment(score=score, level=RiskLevel.medium, verdict="Use caution — no strong scam signal found", summary="This result is uncertain and does not mean the message, link, recipient, or offer is safe. Verify independently before acting.", **fields)

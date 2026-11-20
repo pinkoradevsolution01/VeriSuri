@@ -38,10 +38,10 @@ const AccountSecurity = lazy(() => import('./components/AccountSecurity').then(m
 
 function Brand() { return <span className="brand"><span className="brand-mark"><ShieldCheck size={24} /></span><span>Veri<span>Suri</span></span></span> }
 function Score({ assessment }: { assessment: Assessment }) {
-  const tone = assessment.score >= 65 ? 'high' : assessment.score >= 30 ? 'medium' : 'low'
+  const tone = assessment.level === 'high' ? 'high' : 'medium'
   return <>
     <section className={`result-card ${tone}`}>
-      <div><h2>{assessment.verdict}</h2><p>{assessment.summary}</p></div>
+      <div><span className={`evidence-confidence ${assessment.evidence_confidence}`}>{assessment.evidence_confidence === 'high' ? 'High-confidence evidence' : assessment.evidence_confidence === 'moderate' ? 'Moderate-confidence evidence' : 'Limited evidence — verification required'}</span><h2>{assessment.verdict}</h2><p>{assessment.summary}</p></div>
       <div className={`score-meter score-${tone}`} aria-label={`Risk score ${assessment.score} out of 100`}>
         <div className="score-ring" style={{ '--score': assessment.score } as CSSProperties & { '--score': number }}><b>{assessment.score}</b><small>/100</small></div>
         <span>Risk score</span>
@@ -52,6 +52,7 @@ function Score({ assessment }: { assessment: Assessment }) {
       <ul>{assessment.recommendations.map(item => <li key={item}>{item}</li>)}</ul>
       <p className="assessment-disclaimer">Safety screening only — verify independently. A score is not a guarantee or an accusation.</p>
     </section>
+    <p className="assessment-disclaimer required-verification">{assessment.verification_message}</p>
     <SafetyActionPlan tone={tone} />
   </>
 }

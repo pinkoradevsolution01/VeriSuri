@@ -43,6 +43,9 @@ class Assessment(BaseModel):
     highlights: list[HighlightedSignal] = []
     calibrated_scam_probability: int | None = None
     confidence_basis: str | None = None
+    evidence_confidence: str = "limited"
+    verification_required: bool = True
+    verification_message: str = "Independent verification through an official channel is required before acting."
     link_intelligence: LinkIntelligence | None = None
     recommendation_title: str
     recommendations: list[str]

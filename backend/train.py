@@ -18,7 +18,7 @@ from sklearn.pipeline import Pipeline
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backend.validation import load_permissioned_rows
+from backend.validation import POSITIVE_SCAM_TYPES, load_permissioned_rows
 
 
 def metrics_for(labels: list[int], probabilities: list[float]) -> dict[str, float]:
@@ -39,7 +39,7 @@ def metrics_for(labels: list[int], probabilities: list[float]) -> dict[str, floa
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("dataset", type=Path, help="Permissioned CSV with text,label,language,source,consent_reference")
+    parser.add_argument("dataset", type=Path, help="Permissioned moderated CSV with text,label,language,scam_type,source,consent_reference,moderation_reference")
     parser.add_argument("--output", type=Path, default=Path("backend/models/verisuri_v1.joblib"))
     parser.add_argument("--metrics", type=Path, default=Path("backend/models/verisuri_v1.metrics.json"))
     parser.add_argument("--version", required=True, help="A reviewed release-candidate version, never a demo version")
@@ -51,7 +51,7 @@ def main() -> None:
     rows, validation = load_permissioned_rows(args.dataset, minimum_rows=args.minimum_rows)
     texts = [row["text"] for row in rows]
     labels = [int(row["label"]) for row in rows]
-    strata = [f"{row['language']}:{row['label']}" for row in rows]
+    strata = [f"{row['language']}:{row['label']}:{row['scam_type']}" for row in rows]
     train_x, test_x, train_y, test_y, train_rows, test_rows = train_test_split(texts, labels, rows, test_size=.2, random_state=42, stratify=strata)
     base = Pipeline([
         ("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=2, sublinear_tf=True)),
@@ -64,6 +64,12 @@ def main() -> None:
     for language in ("en", "fil", "taglish"):
         positions = [index for index, row in enumerate(test_rows) if row["language"] == language]
         by_language[language] = {"test_rows": len(positions), **metrics_for([test_y[index] for index in positions], [probabilities[index] for index in positions])}
+    by_scam_type: dict[str, dict[str, float | int]] = {}
+    legitimate_positions = [index for index, row in enumerate(test_rows) if row["label"] == "0"]
+    for scam_type in sorted(POSITIVE_SCAM_TYPES):
+        positive_positions = [index for index, row in enumerate(test_rows) if row["label"] == "1" and row["scam_type"] == scam_type]
+        positions = [*positive_positions, *legitimate_positions]
+        by_scam_type[scam_type] = {"scam_test_rows": len(positive_positions), "test_rows": len(positions), **metrics_for([test_y[index] for index in positions], [probabilities[index] for index in positions])}
     holdout_hashes = [hashlib.sha256(row["text"].strip().casefold().encode("utf-8")).hexdigest() for row in test_rows]
     metrics = {
         "version": args.version,
@@ -73,6 +79,7 @@ def main() -> None:
         "test_rows": len(test_rows),
         **metrics_for(test_y, probabilities),
         "by_language": by_language,
+        "by_scam_type": by_scam_type,
         "dataset_validation": validation,
         "evaluation_protocol": {
             "holdout": "Stratified 20% holdout by language and label; no holdout text is stored in model metadata.",

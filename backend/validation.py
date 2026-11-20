@@ -8,8 +8,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-REQUIRED_COLUMNS = {"text", "label", "language", "source", "consent_reference"}
+REQUIRED_COLUMNS = {"text", "label", "language", "scam_type", "source", "consent_reference", "moderation_reference"}
 SUPPORTED_LANGUAGES = {"en", "fil", "taglish"}
+POSITIVE_SCAM_TYPES = {"phishing", "impersonation", "investment", "marketplace", "job", "loan", "delivery", "romance", "other"}
+LEGITIMATE_SCAM_TYPE = "legitimate"
 
 
 class DatasetValidationError(ValueError):
@@ -27,6 +29,7 @@ def load_permissioned_rows(
     minimum_rows: int = 300,
     minimum_per_language: int = 60,
     minimum_per_class_language: int = 20,
+    minimum_per_scam_type: int = 50,
 ) -> tuple[list[dict[str, str]], dict[str, Any]]:
     """Load only non-synthetic, explicitly consented rows without logging text."""
     with dataset.open(encoding="utf-8", newline="") as source:
@@ -41,29 +44,37 @@ def load_permissioned_rows(
     fingerprints: set[str] = set()
     language_counts: Counter[str] = Counter()
     class_language_counts: Counter[tuple[str, str]] = Counter()
+    scam_type_counts: Counter[str] = Counter()
     for line, row in enumerate(rows, start=2):
         text = (row.get("text") or "").strip()
         label = (row.get("label") or "").strip()
         language = (row.get("language") or "").strip().lower()
         source_name = (row.get("source") or "").strip()
         consent = (row.get("consent_reference") or "").strip()
+        moderation = (row.get("moderation_reference") or "").strip()
+        scam_type = (row.get("scam_type") or "").strip().lower()
         if len(text) < 6:
             raise DatasetValidationError(f"Row {line} has no usable message text.")
         if label not in {"0", "1"}:
             raise DatasetValidationError(f"Row {line} has an invalid label; use 0 or 1.")
         if language not in SUPPORTED_LANGUAGES:
             raise DatasetValidationError(f"Row {line} has unsupported language '{language}'.")
-        if len(source_name) < 3 or len(consent) < 3:
-            raise DatasetValidationError(f"Row {line} is missing a usable source or consent reference.")
+        if len(source_name) < 3 or len(consent) < 3 or len(moderation) < 3:
+            raise DatasetValidationError(f"Row {line} is missing a usable source, consent, or moderation reference.")
         if "synthetic" in source_name.casefold() or consent.casefold() in {"demo", "not-for-production"}:
             raise DatasetValidationError("Synthetic or demo records cannot be used for a release candidate.")
+        if label == "0" and scam_type != LEGITIMATE_SCAM_TYPE:
+            raise DatasetValidationError(f"Row {line} is legitimate (0) and must use scam_type '{LEGITIMATE_SCAM_TYPE}'.")
+        if label == "1" and scam_type not in POSITIVE_SCAM_TYPES:
+            raise DatasetValidationError(f"Row {line} has an invalid scam_type for a scam record.")
         fingerprint = _fingerprint(text)
         if fingerprint in fingerprints:
             raise DatasetValidationError(f"Row {line} duplicates an earlier message. Remove duplicate records before training.")
         fingerprints.add(fingerprint)
-        clean.append({"text": text, "label": label, "language": language, "source": source_name, "consent_reference": consent})
+        clean.append({"text": text, "label": label, "language": language, "scam_type": scam_type, "source": source_name, "consent_reference": consent, "moderation_reference": moderation})
         language_counts[language] += 1
         class_language_counts[(language, label)] += 1
+        scam_type_counts[scam_type] += 1
 
     if len(clean) < minimum_rows:
         raise DatasetValidationError(f"Use at least {minimum_rows} permissioned, labelled messages; received {len(clean)}.")
@@ -76,12 +87,16 @@ def load_permissioned_rows(
             count = class_language_counts[(language, label)]
             if count < minimum_per_class_language:
                 raise DatasetValidationError(f"Need at least {minimum_per_class_language} {language} examples with label {label}; received {count}.")
+    for scam_type in sorted(POSITIVE_SCAM_TYPES):
+        if scam_type_counts[scam_type] < minimum_per_scam_type:
+            raise DatasetValidationError(f"Need at least {minimum_per_scam_type} permissioned moderated '{scam_type}' scam examples; received {scam_type_counts[scam_type]}.")
 
     return clean, {
         "production_eligible": True,
         "row_count": len(clean),
         "language_counts": dict(sorted(language_counts.items())),
         "class_language_counts": {f"{language}:{label}": count for (language, label), count in sorted(class_language_counts.items())},
+        "scam_type_counts": dict(sorted(scam_type_counts.items())),
         "dataset_digest": hashlib.sha256("\n".join(sorted(fingerprints)).encode("utf-8")).hexdigest(),
-        "privacy_note": "Only aggregate counts and irreversible message fingerprints are stored in this report.",
+        "privacy_note": "Only aggregate counts and irreversible message fingerprints are stored in this report. Every release-candidate row has consent and moderation references.",
     }

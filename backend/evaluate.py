@@ -29,6 +29,19 @@ def release_failures(metrics: dict, *, min_f1: float, min_recall: float, min_pre
             failures.append(f"{scope} precision is below {min_precision}")
         if result.get("false_positive_rate", 1) > max_false_positive_rate:
             failures.append(f"{scope} false-positive rate exceeds {max_false_positive_rate}")
+    scam_type_results = metrics.get("by_scam_type", {})
+    if not scam_type_results:
+        failures.append("per-scam-type held-out evaluation is missing")
+    for scam_type, result in scam_type_results.items():
+        if result.get("scam_test_rows", 0) < 10:
+            failures.append(f"{scam_type} has fewer than 10 held-out scam records")
+            continue
+        if result.get("recall", 0) < min_recall:
+            failures.append(f"{scam_type} recall is below {min_recall}")
+        if result.get("precision", 0) < min_precision:
+            failures.append(f"{scam_type} precision is below {min_precision}")
+        if result.get("false_positive_rate", 1) > max_false_positive_rate:
+            failures.append(f"{scam_type} false-positive rate exceeds {max_false_positive_rate}")
     return failures
 
 
