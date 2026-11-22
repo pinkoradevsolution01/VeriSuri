@@ -151,6 +151,18 @@ async def create_report(payload: ScamReportCreate, request: Request) -> dict[str
         raise HTTPException(status_code=503, detail=str(error)) from error
     return {"id": report_id, "status": "pending"}
 
+@app.get("/api/v1/reports/mine")
+async def my_reports(request: Request) -> list[dict]:
+    """Authenticated reporter history; this never exposes other members' reports."""
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    user_id = await repository.user_id_from_access_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Please sign in to view your reports.")
+    try:
+        return await repository.reports_for_user(user_id)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
 @app.get("/api/v1/contributors")
 async def contributors() -> list[dict]:
     """Public, opt-in, moderator-confirmed contributor acknowledgements only."""

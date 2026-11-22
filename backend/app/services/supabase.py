@@ -200,6 +200,63 @@ class SupabaseRepository:
         except (httpx.HTTPError, KeyError, TypeError, ValueError):
             raise RuntimeError("The moderation queue is temporarily unavailable.")
 
+    async def reports_for_user(self, user_id: str) -> list[dict]:
+        """Return a reporter's own status records without exposing protected values."""
+        if not self.enabled:
+            raise RuntimeError("Secure report storage is not configured.")
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    f"{self.url}/rest/v1/scam_reports",
+                    headers=headers,
+                    params={
+                        "select": "id,status,created_at,reviewed_at",
+                        "reporter_id": f"eq.{user_id}",
+                        "order": "created_at.desc",
+                        "limit": "50",
+                    },
+                )
+                response.raise_for_status()
+                reports = response.json()
+                if not reports:
+                    return []
+
+                ids = ",".join(str(report["id"]) for report in reports)
+                entities_response = await client.get(
+                    f"{self.url}/rest/v1/reported_entities",
+                    headers=headers,
+                    params={"select": "report_id,entity_type,entity_last4", "report_id": f"in.({ids})"},
+                )
+                entities_response.raise_for_status()
+                entities: dict[str, list[dict]] = {}
+                for entity in entities_response.json():
+                    entities.setdefault(str(entity["report_id"]), []).append({
+                        "entity_type": entity["entity_type"],
+                        "entity_last4": entity.get("entity_last4"),
+                    })
+
+                structured: dict[str, dict] = {}
+                structured_response = await client.get(
+                    f"{self.url}/rest/v1/scam_reports",
+                    headers=headers,
+                    params={"select": "id,scam_type,payment_provider,incident_channel", "id": f"in.({ids})"},
+                )
+                if structured_response.is_success:
+                    structured = {str(row["id"]): row for row in structured_response.json()}
+
+                return [{
+                    **report,
+                    "scam_type": structured.get(str(report["id"]), {}).get("scam_type", "other"),
+                    "payment_provider": structured.get(str(report["id"]), {}).get("payment_provider", "not_applicable"),
+                    "incident_channel": structured.get(str(report["id"]), {}).get("incident_channel", "other"),
+                    "reported_entities": entities.get(str(report["id"]), []),
+                } for report in reports]
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError("Your report history is temporarily unavailable.") from error
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
+            raise RuntimeError("Your report history is temporarily unavailable.") from error
+
     async def moderate_scam_report(self, report_id: str, moderator_id: str, status: str, reason: str) -> bool:
         if not self.enabled:
             raise RuntimeError("Secure report storage is not configured.")

@@ -21,13 +21,14 @@ import './screening-evidence.css'
 import './vault.css'
 import './alerts-preview.css'
 import './account-security.css'
+import './my-reports.css'
 import './accessibility.css'
 import { ArrowDown, Bell, BrainCircuit, ChevronRight, ClipboardList, Database, Flag, Home as HomeIcon, Link2, Menu, MessageSquareText, Search, ShieldCheck, TriangleAlert, Users, X } from 'lucide-react'
 import { analyzeFeature, getAlerts, getContributors, type Alert, type Assessment, type Contributor } from './lib/api'
-import { chooseSubscriptionPlan, getModeratorQueue, getProfileCodename, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, setProfileCodename, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
+import { chooseSubscriptionPlan, getModeratorQueue, getMyReports, getProfileCodename, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, setProfileCodename, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type MyReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
 
-type View = 'overview' | 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'contributors' | 'recovery' | 'vault' | 'alerts' | 'moderation' | 'privacy' | 'security'
-const views = new Set<View>(['overview', 'home', 'pay', 'message', 'link', 'reports', 'report', 'contributors', 'recovery', 'vault', 'alerts', 'moderation', 'privacy', 'security'])
+type View = 'overview' | 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'my-reports' | 'contributors' | 'recovery' | 'vault' | 'alerts' | 'moderation' | 'privacy' | 'security'
+const views = new Set<View>(['overview', 'home', 'pay', 'message', 'link', 'reports', 'report', 'my-reports', 'contributors', 'recovery', 'vault', 'alerts', 'moderation', 'privacy', 'security'])
 const PRIVACY_NOTICE_VERSION = '2026-11-19'
 const fromHash = (): View => { const value = window.location.hash.replace(/^#\/?/, '') as View; return views.has(value) ? value : 'overview' }
 const samples: Record<'pay' | 'message' | 'link' | 'reports', string> = {
@@ -168,7 +169,7 @@ function Header({ view, navigate, userEmail, canModerate, openAuth, openSecurity
   const [accountOpen, setAccountOpen] = useState(false)
   const openSecurityPage = () => { setAccountOpen(false); openSecurity() }
   const signOut = () => { setAccountOpen(false); openAuth() }
-  return <header><button className="brand-button" onClick={() => navigate('overview')} aria-label="VeriSuri overview"><Brand /></button><nav className="desktop-nav" aria-label="Main navigation">{userEmail ? <><button className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Dashboard</button><button className={view === 'reports' ? 'active' : ''} onClick={() => navigate('reports')}>Report lookup</button><button className={view === 'alerts' ? 'active' : ''} onClick={() => navigate('alerts')}>Safety alerts</button><button className={view === 'report' ? 'active' : ''} onClick={() => navigate('report')}>Report incident</button><button className={view === 'security' ? 'active' : ''} onClick={openSecurity}>Security</button>{canModerate && <button className={view === 'moderation' ? 'active' : ''} onClick={() => navigate('moderation')}>Moderation</button>}</> : <><button className={view === 'overview' ? 'active' : ''} onClick={() => navigate('overview')}>Overview</button><button className={view === 'contributors' ? 'active' : ''} onClick={() => navigate('contributors')}>Contributors</button></>}</nav><AccessibilityControls />{userEmail ? <div className="account-menu"><button className={`account-menu-trigger ${view === 'security' ? 'active' : ''}`} onClick={() => setAccountOpen(open => !open)} aria-expanded={accountOpen} aria-haspopup="menu">Account &amp; Security</button>{accountOpen && <div className="account-menu-panel" role="menu"><button role="menuitem" onClick={openSecurityPage}>Account security</button><button role="menuitem" className="account-signout" onClick={signOut}>Sign out</button></div>}</div> : <button className="auth-button" onClick={openAuth}>Be a member</button>}</header>
+  return <header><button className="brand-button" onClick={() => navigate('overview')} aria-label="VeriSuri overview"><Brand /></button><nav className="desktop-nav" aria-label="Main navigation">{userEmail ? <><button className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Dashboard</button><button className={view === 'reports' ? 'active' : ''} onClick={() => navigate('reports')}>Report lookup</button><button className={view === 'alerts' ? 'active' : ''} onClick={() => navigate('alerts')}>Safety alerts</button><button className={view === 'report' ? 'active' : ''} onClick={() => navigate('report')}>Report incident</button><button className={view === 'my-reports' ? 'active' : ''} onClick={() => navigate('my-reports')}>My reports</button><button className={view === 'security' ? 'active' : ''} onClick={openSecurity}>Security</button>{canModerate && <button className={view === 'moderation' ? 'active' : ''} onClick={() => navigate('moderation')}>Moderation</button>}</> : <><button className={view === 'overview' ? 'active' : ''} onClick={() => navigate('overview')}>Overview</button><button className={view === 'contributors' ? 'active' : ''} onClick={() => navigate('contributors')}>Contributors</button></>}</nav><AccessibilityControls />{userEmail ? <div className="account-menu"><button className={`account-menu-trigger ${view === 'security' ? 'active' : ''}`} onClick={() => setAccountOpen(open => !open)} aria-expanded={accountOpen} aria-haspopup="menu">Account &amp; Security</button>{accountOpen && <div className="account-menu-panel" role="menu"><button role="menuitem" onClick={() => { setAccountOpen(false); navigate('my-reports') }}>My reports</button><button role="menuitem" onClick={openSecurityPage}>Account security</button><button role="menuitem" className="account-signout" onClick={signOut}>Sign out</button></div>}</div> : <button className="auth-button" onClick={openAuth}>Be a member</button>}</header>
 }
 
 function AuthDialog({ close }: { close: () => void }) { const [email, setEmail] = useState(''); const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false); const oauth = async (provider: 'google' | 'facebook') => { setLoading(true); try { await signInWithProvider(provider) } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not start sign in.') } finally { setLoading(false) } }; const magic = async (event: React.FormEvent) => { event.preventDefault(); setLoading(true); try { await sendMagicLink(email); setNotice('Check your email for the VeriSuri sign-in link.') } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not send the sign-in link.') } finally { setLoading(false) } }; return <div className="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title"><section className="auth-dialog"><button className="dialog-close" onClick={close} aria-label="Close sign in">x</button><ShieldCheck /><h2 id="auth-title">Join VeriSuri</h2><p>Sign in to submit reports and manage your submitted data.</p>{isSupabaseConfigured ? <><div className="oauth-buttons"><button disabled={loading} onClick={() => oauth('google')}>Continue with Google</button><button disabled={loading} onClick={() => oauth('facebook')}>Continue with Facebook</button></div><div className="auth-divider"><span>or use email</span></div><form onSubmit={magic}><label htmlFor="auth-email">Email address</label><input id="auth-email" type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /><button className="primary-action" disabled={loading}>{loading ? 'Sending...' : 'Send sign-in link'}</button></form></> : <p className="form-error">Supabase authentication is not configured.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}</section></div> }
@@ -179,12 +180,13 @@ function Overview({ navigate, member, userEmail, subscription, choosePlan, planN
 
 function Home({ navigate }: { navigate: (view: View) => void }) { const cards: [View, string, string, typeof ShieldCheck][] = [['pay', 'Before You Pay', 'Check a payment request', ShieldCheck], ['message', 'AI Message Analysis', 'Analyze suspicious messages', MessageSquareText], ['link', 'Link Checker', 'Verify a URL before opening', Link2], ['reports', 'Scam Reports Lookup', 'Search confirmed reports', ClipboardList]]; return <main className="screen home-screen"><section className="hero"><div className="hero-copy"><p className="eyebrow">Philippine anti-scam protection</p><h1>Check Before<br /><span>You Pay</span></h1><p>Use clear risk signals before you send money, click, or share.</p></div><div className="hero-shield"><ShieldCheck /></div></section><section className="feature-grid" aria-label="Protection tools">{cards.map(([id, title, caption, Icon]) => <button key={id} className="feature-card" onClick={() => navigate(id)}><span className="feature-icon"><Icon /></span><strong>{title}</strong><small>{caption}</small></button>)}</section><button className="recovery-strip" onClick={() => navigate('recovery')}><ShieldCheck /><span><b>I already sent money or shared an OTP</b><small>Start urgent recovery steps through official channels.</small></span><ChevronRight /></button><button className="report-strip" onClick={() => navigate('report')}><Flag /><span><b>Report a scam responsibly</b><small>Reports are reviewed before community matching.</small></span><ChevronRight /></button></main> }
 
-function Tool({ type, navigate }: { type: 'pay' | 'message' | 'link' | 'reports'; navigate: (view: View) => void }) {
+function Tool({ type, navigate }: { type: 'pay' | 'message' | 'link' | 'reports' | 'my-reports'; navigate: (view: View) => void }) {
   const [value, setValue] = useState('')
   const [entityType, setEntityType] = useState('gcash')
   const [result, setResult] = useState<Assessment | null>(null)
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  if (type === 'my-reports') return <MyReports navigate={navigate} />
   const labels = { pay: ['Before You Pay', 'Enter a GCash, Maya, or bank payment identifier.'], message: ['AI Message Analysis', 'Paste a message to identify scam signals.'], link: ['Suspicious Link Checker', 'Paste a link or a message containing one link.'], reports: ['Scam Reports Lookup', 'Search reviewed community reports before you pay.'] } as const
   const entityTypes = type === 'pay' ? ['gcash', 'maya', 'bank'] : ['gcash', 'maya', 'bank', 'phone']
   const run = async () => { if (!value.trim()) return; setLoading(true); setNotice(''); try { setResult(await analyzeFeature(type, value, entityType)) } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to check this item.') } finally { setLoading(false) } }
@@ -216,8 +218,9 @@ function Report({ navigate }: { navigate: (view: View) => void }) {
   const [publicContributor, setPublicContributor] = useState(false)
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const submit = async (event: React.FormEvent) => {
-    event.preventDefault(); setNotice('')
+    event.preventDefault(); setNotice(''); setSubmitted(false)
     if (!safe) return setNotice('Confirm that you removed sensitive details before submitting.')
     if (entityValue.trim().length < 3 || narrative.trim().length < 20) return setNotice('Provide a suspicious identifier and at least 20 characters of incident detail.')
     if (evidence.trim() && evidence.trim().length < 20) return setNotice('Redacted evidence must be at least 20 characters, or leave it blank.')
@@ -226,6 +229,7 @@ function Report({ navigate }: { navigate: (view: View) => void }) {
     try {
       await submitScamReport({ entityType, entityValue, narrative, scamType, paymentProvider, amountRange, incidentAt, incidentChannel, redactedEvidence: evidence, privacyNoticeVersion: PRIVACY_NOTICE_VERSION, acknowledgesSafeSubmission: safe, trainingConsent: consent, redactedTrainingSample: sample, publicContributorConsent: publicContributor })
       setNotice('Report submitted for moderation. Similar identifier matches are flagged for moderator review; this report cannot affect community matching until confirmed.')
+      setSubmitted(true)
       setEntityValue(''); setNarrative(''); setEvidence(''); setSample(''); setSafe(false); setConsent(false); setPublicContributor(false)
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to submit the report.') } finally { setLoading(false) }
   }
@@ -251,8 +255,24 @@ function Report({ navigate }: { navigate: (view: View) => void }) {
       <section className="privacy-consent"><p><b>Privacy and safe submission</b><br />We store a protected hash of the reported identifier for matching. Similar reports are marked as possible duplicates for moderator review, not automatically published.</p><label className="consent-row"><input type="checkbox" checked={safe} onChange={event => setSafe(event.target.checked)} /><span>I have the right to submit this report and removed passwords, OTPs, PINs, full card details, and unrelated personal information.</span></label><label className="consent-row optional"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} /><span><b>Optional:</b> I consent to provide a separate redacted sample for model improvement after moderator approval. This never happens automatically.</span></label><label className="consent-row optional"><input type="checkbox" checked={publicContributor} onChange={event => setPublicContributor(event.target.checked)} /><span><b>Optional:</b> After moderator confirmation, show my profile display name with a non-clickable, limited reference in Contributors. Full account details, URLs, and report text are never published.</span></label>{consent && <><label className="input-label" htmlFor="sample">Redacted message sample</label><div className="field message-field"><textarea id="sample" rows={4} value={sample} onChange={event => setSample(event.target.value)} placeholder="Replace names, account numbers, links, and OTPs with [REDACTED]." /></div></>}</section>
       <p className="data-link">Notice version {PRIVACY_NOTICE_VERSION}. <button type="button" onClick={() => navigate('privacy')}>Read how VeriSuri handles data</button></p>
       <button className="primary-action" disabled={loading || !isSupabaseConfigured}>{loading ? 'Submitting...' : 'Submit for review'} <ChevronRight size={18} /></button>
-      {!isSupabaseConfigured && <p className="form-error">Report submission needs Supabase configuration.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}
+      {!isSupabaseConfigured && <p className="form-error">Report submission needs Supabase configuration.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}{submitted && <button type="button" className="secondary-action report-status-link" onClick={() => navigate('my-reports')}>View my report status</button>}
     </form>
+  </main>
+}
+
+function MyReports({ navigate }: { navigate: (view: View) => void }) {
+  const [items, setItems] = useState<MyReport[]>([])
+  const [notice, setNotice] = useState('')
+  const [loading, setLoading] = useState(true)
+  const load = () => { setLoading(true); setNotice(''); getMyReports().then(setItems).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to load your report history.')).finally(() => setLoading(false)) }
+  useEffect(() => { load() }, [])
+  const label = (value: string) => value.replace(/_/g, ' ')
+  return <main className="screen tool-screen my-reports-screen">
+    <button className="back" onClick={() => navigate('home')}>Back to dashboard</button>
+    <div className="tool-heading"><span className="tool-icon"><ClipboardList /></span><h1>My reports</h1><p>Track reports you submitted. Pending reports remain private until an authorized moderator makes a decision.</p></div>
+    <section className="my-reports-intro"><ShieldCheck /><p><b>Verification protection:</b> only confirmed reports can influence community matching or public contributor recognition.</p></section>
+    {loading ? <p className="privacy-note">Loading your private report history...</p> : <section className="my-reports-list" aria-label="Your submitted reports">{items.length ? items.map(report => <article className="my-report-card" key={report.id}><div className="my-report-heading"><span className={`report-status status-${report.status}`}>{report.status}</span><small>Submitted {new Date(report.created_at).toLocaleString()}</small></div><h2>{report.reported_entities.map(entity => `${label(entity.entity_type)} ending ${entity.entity_last4 ?? 'hidden'}`).join(' / ') || 'Protected report reference'}</h2><div className="my-report-tags"><span>{label(report.scam_type)}</span><span>{label(report.payment_provider)}</span><span>{label(report.incident_channel)}</span></div><p>{report.status === 'pending' ? 'Awaiting moderator review. It is not searchable by other members.' : report.status === 'confirmed' ? 'Confirmed by a moderator. Matching is now enabled for this protected identifier.' : 'The report was reviewed but not confirmed. It does not affect community matching.'}</p>{report.reviewed_at && <small>Reviewed {new Date(report.reviewed_at).toLocaleString()}</small>}</article>) : <div className="empty-state"><p>You have not submitted any reports yet.</p><button className="secondary-action" onClick={() => navigate('report')}>Report an incident</button></div>}</section>}
+    {notice && <p className="privacy-note" role="status">{notice}</p>}
   </main>
 }
 
@@ -261,11 +281,13 @@ function Moderation({ navigate }: { navigate: (view: View) => void }) {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState<string | null>(null)
-  useEffect(() => { getModeratorQueue().then(setQueue).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to load moderation queue.')).finally(() => setLoading(false)) }, [])
+  const load = () => { setLoading(true); setNotice(''); getModeratorQueue().then(setQueue).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to load moderation queue.')).finally(() => setLoading(false)) }
+  useEffect(() => { load() }, [])
   const decide = async (report: ModerationReport, decision: 'confirmed' | 'rejected') => { setActive(report.id); try { await reviewScamReport(report.id, decision, decision === 'confirmed' ? 'Verified by moderator review.' : 'Not sufficiently verified.'); setQueue(current => current.filter(item => item.id !== report.id)); setNotice(`Report ${decision}.`) } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to save review.') } finally { setActive(null) } }
   return <main className="screen tool-screen moderation-screen">
     <button className="back" onClick={() => navigate('home')}>Back to dashboard</button>
     <div className="tool-heading"><span className="tool-icon"><ShieldCheck /></span><h1>Moderation queue</h1><p>Confirm reports only when evidence is adequate. Confirmed results can affect community matching.</p></div>
+    <button className="secondary-action moderation-refresh" onClick={load} disabled={loading}>{loading ? 'Refreshing queue...' : 'Refresh queue'}</button>
     {loading ? <p className="privacy-note">Loading pending reports...</p> : <section className="moderation-list">{queue.length ? queue.map(report => <article className="moderation-card" key={report.id}>
       <div className="moderation-meta"><b>{report.reported_entities.map(entity => `${entity.entity_type} ending ${entity.entity_last4 ?? 'hidden'}`).join(' / ')}</b><small>{new Date(report.created_at).toLocaleString()}</small></div>
       <div className="moderation-details"><span>{report.scam_type.replace('_', ' ')}</span><span>{report.payment_provider.replace('_', ' ')}</span><span>{report.amount_range.replace(/_/g, ' ')}</span><span>{report.incident_channel.replace(/_/g, ' ')}</span>{report.incident_at && <span>{new Date(report.incident_at).toLocaleString()}</span>}</div>
@@ -274,7 +296,7 @@ function Moderation({ navigate }: { navigate: (view: View) => void }) {
       {report.redacted_evidence && <p className="moderation-evidence"><b>Redacted evidence:</b> {report.redacted_evidence}</p>}
       {report.training_consent && <p className="training-tag">A separately redacted sample is awaiting model-data review.</p>}
       <div className="moderation-actions"><button disabled={active === report.id} onClick={() => decide(report, 'rejected')}>Reject</button><button className="approve" disabled={active === report.id} onClick={() => decide(report, 'confirmed')}>{active === report.id ? 'Saving...' : 'Confirm report'}</button></div>
-    </article>) : <p className="empty-state">No pending reports. Only confirmed reports contribute to matching.</p>}</section>}
+    </article>) : <p className="empty-state">No pending reports are currently in this queue. Newly submitted reports stay private until they are loaded here and reviewed. Use Refresh queue after a new submission.</p>}</section>}
     <ModeratedAlertPanel />
     {notice.includes('MFA') && <button className="secondary-action" onClick={() => navigate('security')}>Open account security</button>}
     {notice && <p className="privacy-note" role="status">{notice}</p>}
@@ -330,7 +352,7 @@ function BottomNav({ view, navigate, signedIn, canModerate, openAccount }: { vie
           <div><p>Protection tools</p><button onClick={() => go('pay')}>Before You Pay</button><button onClick={() => go('message')}>AI Message Analysis</button><button onClick={() => go('link')}>Suspicious Link Checker</button><button onClick={() => go('reports')}>Scam Reports Lookup</button></div>
           <div><p>Get help</p><button onClick={() => go('report')}>Report an incident</button><button onClick={() => go('recovery')}>I sent money or shared an OTP</button><button onClick={() => go('vault')}>Evidence Vault</button><button onClick={() => go('alerts')}>Safety alerts</button></div>
           <div><p>Settings</p><button onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('verisuri:open-accessibility')) }}>Accessibility settings</button></div>
-          {(signedIn || canModerate) && <div><p>Account</p>{signedIn && <><button onClick={() => go('security')}>Account &amp; security</button><button onClick={() => { setMoreOpen(false); openAccount() }}>Sign out</button></>}{canModerate && <button onClick={() => go('moderation')}>Moderation</button>}</div>}
+          {(signedIn || canModerate) && <div><p>Account</p>{signedIn && <><button onClick={() => go('my-reports')}>My reports</button><button onClick={() => go('security')}>Account &amp; security</button><button onClick={() => { setMoreOpen(false); openAccount() }}>Sign out</button></>}{canModerate && <button onClick={() => go('moderation')}>Moderation</button>}</div>}
         </nav>
       </section>
     </div>}

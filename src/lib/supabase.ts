@@ -247,6 +247,7 @@ export type ModerationReport = {
 
 export type ModeratedAlertDraft = { title: string; summary: string; severity: 'low' | 'medium' | 'high'; sourceName: string; sourceUrl: string; affectedPlatform: string; region?: string; reviewAt: string; expiresAt: string }
 export type ModerationAlert = ModeratedAlertDraft & { id: string; status: 'pending'; created_at: string }
+export type MyReport = { id: string; status: 'pending' | 'confirmed' | 'rejected'; created_at: string; reviewed_at: string | null; scam_type: string; payment_provider: string; incident_channel: string; reported_entities: { entity_type: ReportEntityType; entity_last4: string | null }[] }
 export type EvidenceVaultItem = { id: string; item_type: 'screenshot' | 'transaction_reference' | 'note'; filename: string | null; transaction_reference: string | null; occurred_at: string | null; note: string | null; created_at: string }
 
 export async function submitScamReport(submission: ReportSubmission) {
@@ -285,6 +286,11 @@ export async function submitScamReport(submission: ReportSubmission) {
 export async function getModeratorQueue(): Promise<ModerationReport[]> {
   const response = await authenticatedApiRequest('/moderation/reports')
   return response as ModerationReport[]
+}
+
+export async function getMyReports(): Promise<MyReport[]> {
+  const response = await authenticatedApiRequest('/reports/mine')
+  return response as MyReport[]
 }
 
 export async function createModeratedAlert(draft: ModeratedAlertDraft) {
