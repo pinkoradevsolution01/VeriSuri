@@ -293,6 +293,28 @@ export async function getMyReports(): Promise<MyReport[]> {
   return response as MyReport[]
 }
 
+export async function getReadAlertIds(alertIds: string[]): Promise<string[]> {
+  if (!supabase || !alertIds.length) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  const { data, error } = await supabase.from('alert_reads').select('alert_id').in('alert_id', alertIds)
+  if (error) throw error
+  return (data ?? []).map(item => String(item.alert_id))
+}
+
+export async function markAlertsRead(alertIds: string[]): Promise<void> {
+  if (!supabase) throw new Error('Sign in to keep track of alert reads.')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Sign in to mark alerts as read.')
+  const uniqueIds = [...new Set(alertIds)]
+  if (!uniqueIds.length) return
+  const { error } = await supabase.from('alert_reads').upsert(
+    uniqueIds.map(alertId => ({ user_id: user.id, alert_id: alertId, read_at: new Date().toISOString() })),
+    { onConflict: 'user_id,alert_id' },
+  )
+  if (error) throw error
+}
+
 export async function createModeratedAlert(draft: ModeratedAlertDraft) {
   if (!supabase) throw new Error('Supabase is not configured yet.')
   const { error } = await supabase.rpc('create_moderated_alert', {

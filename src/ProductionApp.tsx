@@ -22,10 +22,11 @@ import './vault.css'
 import './alerts-preview.css'
 import './account-security.css'
 import './my-reports.css'
+import './notifications.css'
 import './accessibility.css'
 import { ArrowDown, Bell, BrainCircuit, ChevronRight, ClipboardList, Database, Flag, Home as HomeIcon, Link2, Menu, MessageSquareText, Search, ShieldCheck, TriangleAlert, Users, X } from 'lucide-react'
 import { analyzeFeature, getAlerts, getContributors, type Alert, type Assessment, type Contributor } from './lib/api'
-import { chooseSubscriptionPlan, getModeratorQueue, getMyReports, getProfileCodename, isSupabaseConfigured, requestDataDeletion, reviewScamReport, sendMagicLink, setProfileCodename, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type MyReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
+import { chooseSubscriptionPlan, getModeratorQueue, getMyReports, getProfileCodename, getReadAlertIds, isSupabaseConfigured, markAlertsRead, requestDataDeletion, reviewScamReport, sendMagicLink, setProfileCodename, signInWithProvider, signOut, submitScamReport, supabase, type ModerationReport, type MyReport, type ReportEntityType, type SubscriptionPlan, type SubscriptionState } from './lib/supabase'
 
 type View = 'overview' | 'home' | 'pay' | 'message' | 'link' | 'reports' | 'report' | 'my-reports' | 'contributors' | 'recovery' | 'vault' | 'alerts' | 'moderation' | 'privacy' | 'security'
 const views = new Set<View>(['overview', 'home', 'pay', 'message', 'link', 'reports', 'report', 'my-reports', 'contributors', 'recovery', 'vault', 'alerts', 'moderation', 'privacy', 'security'])
@@ -167,9 +168,25 @@ function Score({ assessment }: { assessment: Assessment }) {
 
 function Header({ view, navigate, userEmail, canModerate, openAuth, openSecurity }: { view: View; navigate: (view: View) => void; userEmail: string | null; canModerate: boolean; openAuth: () => void; openSecurity: () => void }) {
   const [accountOpen, setAccountOpen] = useState(false)
+  const [unreadAlerts, setUnreadAlerts] = useState(0)
   const openSecurityPage = () => { setAccountOpen(false); openSecurity() }
   const signOut = () => { setAccountOpen(false); openAuth() }
-  return <header><button className="brand-button" onClick={() => navigate('overview')} aria-label="VeriSuri overview"><Brand /></button><nav className="desktop-nav" aria-label="Main navigation">{userEmail ? <><button className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Dashboard</button><button className={view === 'reports' ? 'active' : ''} onClick={() => navigate('reports')}>Report lookup</button><button className={view === 'alerts' ? 'active' : ''} onClick={() => navigate('alerts')}>Safety alerts</button><button className={view === 'report' ? 'active' : ''} onClick={() => navigate('report')}>Report incident</button><button className={view === 'my-reports' ? 'active' : ''} onClick={() => navigate('my-reports')}>My reports</button><button className={view === 'security' ? 'active' : ''} onClick={openSecurity}>Security</button>{canModerate && <button className={view === 'moderation' ? 'active' : ''} onClick={() => navigate('moderation')}>Moderation</button>}</> : <><button className={view === 'overview' ? 'active' : ''} onClick={() => navigate('overview')}>Overview</button><button className={view === 'contributors' ? 'active' : ''} onClick={() => navigate('contributors')}>Contributors</button></>}</nav><AccessibilityControls />{userEmail ? <div className="account-menu"><button className={`account-menu-trigger ${view === 'security' ? 'active' : ''}`} onClick={() => setAccountOpen(open => !open)} aria-expanded={accountOpen} aria-haspopup="menu">Account &amp; Security</button>{accountOpen && <div className="account-menu-panel" role="menu"><button role="menuitem" onClick={() => { setAccountOpen(false); navigate('my-reports') }}>My reports</button><button role="menuitem" onClick={openSecurityPage}>Account security</button><button role="menuitem" className="account-signout" onClick={signOut}>Sign out</button></div>}</div> : <button className="auth-button" onClick={openAuth}>Be a member</button>}</header>
+  useEffect(() => {
+    let cancelled = false
+    const refresh = async () => {
+      if (!userEmail) { if (!cancelled) setUnreadAlerts(0); return }
+      try {
+        const alerts = await getAlerts()
+        const readIds = await getReadAlertIds(alerts.map(alert => alert.id))
+        if (!cancelled) setUnreadAlerts(alerts.filter(alert => !readIds.includes(alert.id)).length)
+      } catch { if (!cancelled) setUnreadAlerts(0) }
+    }
+    void refresh()
+    const interval = window.setInterval(() => void refresh(), 60_000)
+    window.addEventListener('verisuri:alerts-read', refresh)
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('verisuri:alerts-read', refresh) }
+  }, [userEmail])
+  return <header><button className="brand-button" onClick={() => navigate('overview')} aria-label="VeriSuri overview"><Brand /></button><nav className="desktop-nav" aria-label="Main navigation">{userEmail ? <><button className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Dashboard</button><button className={view === 'reports' ? 'active' : ''} onClick={() => navigate('reports')}>Report lookup</button><button className={view === 'alerts' ? 'active' : ''} onClick={() => navigate('alerts')}>Safety alerts</button><button className={view === 'report' ? 'active' : ''} onClick={() => navigate('report')}>Report incident</button><button className={view === 'my-reports' ? 'active' : ''} onClick={() => navigate('my-reports')}>My reports</button><button className={view === 'security' ? 'active' : ''} onClick={openSecurity}>Security</button>{canModerate && <button className={view === 'moderation' ? 'active' : ''} onClick={() => navigate('moderation')}>Moderation</button>}</> : <><button className={view === 'overview' ? 'active' : ''} onClick={() => navigate('overview')}>Overview</button><button className={view === 'contributors' ? 'active' : ''} onClick={() => navigate('contributors')}>Contributors</button></>}</nav><button className={`notification-bell ${view === 'alerts' ? 'active' : ''}`} onClick={() => navigate('alerts')} aria-label={unreadAlerts ? `${unreadAlerts} unread safety alerts` : 'Open safety alerts'}><Bell size={19} />{unreadAlerts > 0 && <span className="notification-count" aria-hidden="true">{unreadAlerts > 99 ? '99+' : unreadAlerts}</span>}</button><AccessibilityControls />{userEmail ? <div className="account-menu"><button className={`account-menu-trigger ${view === 'security' ? 'active' : ''}`} onClick={() => setAccountOpen(open => !open)} aria-expanded={accountOpen} aria-haspopup="menu">Account &amp; Security</button>{accountOpen && <div className="account-menu-panel" role="menu"><button role="menuitem" onClick={() => { setAccountOpen(false); navigate('my-reports') }}>My reports</button><button role="menuitem" onClick={openSecurityPage}>Account security</button><button role="menuitem" className="account-signout" onClick={signOut}>Sign out</button></div>}</div> : <button className="auth-button" onClick={openAuth}>Be a member</button>}</header>
 }
 
 function AuthDialog({ close }: { close: () => void }) { const [email, setEmail] = useState(''); const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false); const oauth = async (provider: 'google' | 'facebook') => { setLoading(true); try { await signInWithProvider(provider) } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not start sign in.') } finally { setLoading(false) } }; const magic = async (event: React.FormEvent) => { event.preventDefault(); setLoading(true); try { await sendMagicLink(email); setNotice('Check your email for the VeriSuri sign-in link.') } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not send the sign-in link.') } finally { setLoading(false) } }; return <div className="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title"><section className="auth-dialog"><button className="dialog-close" onClick={close} aria-label="Close sign in">x</button><ShieldCheck /><h2 id="auth-title">Join VeriSuri</h2><p>Sign in to submit reports and manage your submitted data.</p>{isSupabaseConfigured ? <><div className="oauth-buttons"><button disabled={loading} onClick={() => oauth('google')}>Continue with Google</button><button disabled={loading} onClick={() => oauth('facebook')}>Continue with Facebook</button></div><div className="auth-divider"><span>or use email</span></div><form onSubmit={magic}><label htmlFor="auth-email">Email address</label><input id="auth-email" type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /><button className="primary-action" disabled={loading}>{loading ? 'Sending...' : 'Send sign-in link'}</button></form></> : <p className="form-error">Supabase authentication is not configured.</p>}{notice && <p className="privacy-note" role="status">{notice}</p>}</section></div> }
@@ -307,13 +324,45 @@ function Privacy({ navigate, signedIn }: { navigate: (view: View) => void; signe
 
 function Alerts({ navigate }: { navigate: (view: View) => void }) {
   const [items, setItems] = useState<Alert[]>([])
-  useEffect(() => { getAlerts().then(setItems).catch(() => undefined) }, [])
+  const [readIds, setReadIds] = useState<string[]>([])
+  const [signedIn, setSignedIn] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [selected, setSelected] = useState<Alert | null>(null)
+  const load = async () => {
+    try {
+      const alerts = await getAlerts(); setItems(alerts)
+      const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } }
+      setSignedIn(Boolean(user))
+      setReadIds(user ? await getReadAlertIds(alerts.map(alert => alert.id)) : [])
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Alerts are unavailable.') }
+  }
+  useEffect(() => { void load() }, [])
+  const markRead = async (ids: string[]) => {
+    if (!signedIn) { setNotice('Sign in to save your alert read status across devices.'); return }
+    try {
+      await markAlertsRead(ids)
+      setReadIds(current => [...new Set([...current, ...ids])])
+      window.dispatchEvent(new Event('verisuri:alerts-read'))
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save alert read status.') }
+  }
+  const openReview = async (alert: Alert) => { await markRead([alert.id]); setSelected(alert) }
+  if (selected) return <SafetyReview alert={selected} back={() => setSelected(null)} />
   return <main className="screen tool-screen alerts-screen">
     <button className="back" onClick={() => navigate('home')}>Back to dashboard</button>
     <div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Only moderator-verified advisories with an official source and active review date appear here.</p></div>
-    <section className="alert-list">{items.length ? items.map(item => <article className={`alert-item verified-alert ${item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : ''}`} key={item.id}>
-      <span><TriangleAlert /></span><div><p className="verified-label">Verified advisory</p><h3>{item.title}</h3><p>{item.summary}</p><div className="alert-details"><small>Platform: {item.affected_platform}</small>{item.region && <small>Region: {item.region}</small>}<small>Published: {new Date(item.published_at).toLocaleDateString()}</small><small>Review by: {new Date(item.review_at).toLocaleDateString()}</small></div><a href={item.source_url} target="_blank" rel="noopener noreferrer">Source: {item.source_name}</a></div>
+    <div className="alerts-toolbar"><button className="secondary-action" onClick={() => void markRead(items.map(item => item.id))} disabled={!items.length}>Mark all as read</button></div>
+    <section className="alert-list">{items.length ? items.map(item => <article className={`alert-item verified-alert ${readIds.includes(item.id) ? '' : 'unread'} ${item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : ''}`} key={item.id}>
+      <span><TriangleAlert /></span><div><p className="verified-label">Verified advisory</p><h3>{item.title}</h3><p>{item.summary}</p><div className="alert-details"><small>Platform: {item.affected_platform}</small>{item.region && <small>Region: {item.region}</small>}<small>Published: {new Date(item.published_at).toLocaleDateString()}</small><small>Review by: {new Date(item.review_at).toLocaleDateString()}</small></div><button className="alert-open-review" onClick={() => void openReview(item)}>Read safety review <ChevronRight /></button></div>
     </article>) : <p className="empty-state">No verified, active advisories are available yet.</p>}</section>
+    {notice && <p className="privacy-note" role="status">{notice}</p>}
+  </main>
+}
+
+function SafetyReview({ alert, back }: { alert: Alert; back: () => void }) {
+  return <main className="screen tool-screen alerts-screen">
+    <button className="back" onClick={back}>Back to alerts</button>
+    <div className="tool-heading"><span className="tool-icon"><ShieldCheck /></span><h1>Safety review</h1><p>Review the verified advisory, then use only independently verified support channels.</p></div>
+    <section className="alert-review"><article className="alert-review-card"><div><p className="verified-label">Verified safety alert</p><h2>{alert.title}</h2></div><p>{alert.summary}</p><div className="alert-review-meta"><span>{alert.severity} risk</span><span>{alert.affected_platform}</span>{alert.region && <span>{alert.region}</span>}<span>Review by {new Date(alert.review_at).toLocaleDateString()}</span></div><ul className="alert-review-checklist"><li><ShieldCheck />Do not use phone numbers, links, or payment details contained in a suspicious message.</li><li><ShieldCheck />Verify through the provider&apos;s official app, website, or known support channel.</li><li><ShieldCheck />Save redacted evidence and report the incident if you were affected.</li></ul><div className="alert-review-actions"><a href={alert.source_url} target="_blank" rel="noopener noreferrer">Open verified source: {alert.source_name}</a><button className="secondary-action" onClick={back}>Return to alerts</button></div></article></section>
   </main>
 }
 
