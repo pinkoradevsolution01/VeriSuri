@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from backend.app.config import get_settings
 from backend.app.monitoring import RequestRateLimiter, fingerprint_client, security_log
-from backend.app.schemas import AlertItem, Assessment, LinkRequest, MessageRequest, PaymentRequest, ReportLookupRequest, ScamReportCreate
+from backend.app.schemas import AlertItem, Assessment, LinkRequest, MessageRequest, ModerationDecision, PaymentRequest, ReportLookupRequest, ScamReportCreate
 from backend.app.services.detector import HybridDetector, build_assessment
 from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
@@ -150,6 +150,34 @@ async def create_report(payload: ScamReportCreate, request: Request) -> dict[str
     except RuntimeError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     return {"id": report_id, "status": "pending"}
+
+async def require_moderator(request: Request):
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    moderator = await repository.moderator_context_from_access_token(token)
+    if not moderator:
+        raise HTTPException(status_code=403, detail="Moderator or admin access is required.")
+    if moderator.aal != "aal2":
+        raise HTTPException(status_code=403, detail="Complete authenticator-app MFA in Account Security before opening or moderating reports.")
+    return moderator
+
+@app.get("/api/v1/moderation/reports")
+async def moderation_queue(request: Request) -> list[dict]:
+    await require_moderator(request)
+    try:
+        return await repository.pending_moderation_reports()
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+@app.post("/api/v1/moderation/reports/{report_id}/decision")
+async def moderate_report(report_id: uuid.UUID, payload: ModerationDecision, request: Request) -> dict[str, str]:
+    moderator = await require_moderator(request)
+    try:
+        approved = await repository.moderate_scam_report(str(report_id), moderator.user_id, payload.status, payload.reason)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    if not approved:
+        raise HTTPException(status_code=409, detail="This report was already reviewed or is no longer available.")
+    return {"id": str(report_id), "status": payload.status}
 
 @app.get("/api/v1/alerts", response_model=list[AlertItem])
 async def alerts() -> list[AlertItem]:

@@ -270,6 +270,7 @@ function Moderation({ navigate }: { navigate: (view: View) => void }) {
       <div className="moderation-actions"><button disabled={active === report.id} onClick={() => decide(report, 'rejected')}>Reject</button><button className="approve" disabled={active === report.id} onClick={() => decide(report, 'confirmed')}>{active === report.id ? 'Saving...' : 'Confirm report'}</button></div>
     </article>) : <p className="empty-state">No pending reports. Only confirmed reports contribute to matching.</p>}</section>}
     <ModeratedAlertPanel />
+    {notice.includes('MFA') && <button className="secondary-action" onClick={() => navigate('security')}>Open account security</button>}
     {notice && <p className="privacy-note" role="status">{notice}</p>}
   </main>
 }

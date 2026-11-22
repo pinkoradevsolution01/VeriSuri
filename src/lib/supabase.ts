@@ -262,15 +262,8 @@ export async function submitScamReport(submission: ReportSubmission) {
 }
 
 export async function getModeratorQueue(): Promise<ModerationReport[]> {
-  if (!supabase) throw new Error('Supabase is not configured yet.')
-  const { data, error } = await supabase
-    .from('scam_reports')
-    .select('id,narrative,created_at,scam_type,payment_provider,amount_range,incident_at,incident_channel,redacted_evidence,duplicate_count,duplicate_of,privacy_notice_version,training_consent,reported_entities(entity_type,entity_last4),training_examples(id,text_redacted,status)')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(50)
-  if (error) throw error
-  return (data ?? []) as ModerationReport[]
+  const response = await authenticatedApiRequest('/moderation/reports')
+  return response as ModerationReport[]
 }
 
 export async function createModeratedAlert(draft: ModeratedAlertDraft) {
@@ -341,14 +334,27 @@ export async function addEvidenceVaultItem(item: { type: EvidenceVaultItem['item
 }
 
 export async function reviewScamReport(reportId: string, decision: 'confirmed' | 'rejected', reason: string, trainingStatus: 'approved' | 'rejected' | null = null) {
-  if (!supabase) throw new Error('Supabase is not configured yet.')
-  const { error } = await supabase.rpc('review_scam_report', {
-    p_report_id: reportId,
-    p_status: decision,
-    p_reason: reason.trim() || null,
-    p_training_status: trainingStatus,
+  void trainingStatus
+  await authenticatedApiRequest(`/moderation/reports/${encodeURIComponent(reportId)}/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ status: decision, reason: reason.trim() || 'Reviewed by moderator.' }),
   })
-  if (error) throw error
+}
+
+async function authenticatedApiRequest(path: string, init: RequestInit = {}) {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Please sign in before using moderator tools.')
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, ...(init.headers ?? {}) },
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.detail ?? 'Moderator service is unavailable. Please try again.')
+  }
+  return response.json()
 }
 
 export async function requestDataDeletion() {

@@ -1,4 +1,5 @@
 from enum import Enum
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
@@ -85,6 +86,11 @@ class ScamReportCreate(BaseModel):
     acknowledges_safe_submission: bool
     training_consent: bool = False
     redacted_training_sample: str | None = Field(default=None, max_length=6000)
+
+
+class ModerationDecision(BaseModel):
+    status: str = Field(pattern="^(confirmed|rejected)$")
+    reason: str = Field(min_length=3, max_length=1000)
 
 
 class AlertItem(BaseModel):

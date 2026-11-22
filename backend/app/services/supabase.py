@@ -1,5 +1,7 @@
+import base64
 import hashlib
 import httpx
+import json
 from datetime import UTC, datetime
 from dataclasses import dataclass
 from backend.app.config import get_settings
@@ -24,6 +26,13 @@ class ExternalThreatObservation:
     source_name: str
     source_url: str
     evidence_status: str
+
+
+@dataclass(frozen=True)
+class ModeratorContext:
+    user_id: str
+    role: str
+    aal: str
 
 class SupabaseRepository:
     def __init__(self) -> None:
@@ -70,6 +79,99 @@ class SupabaseRepository:
                 return response.json().get("id")
         except httpx.HTTPError:
             return None
+
+    @staticmethod
+    def _token_aal(access_token: str) -> str:
+        """Read AAL only after Supabase has authenticated the token."""
+        try:
+            segment = access_token.split(".")[1]
+            payload = json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
+            return str(payload.get("aal", "aal1"))
+        except (IndexError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            return "aal1"
+
+    async def moderator_context_from_access_token(self, access_token: str | None) -> ModeratorContext | None:
+        user_id = await self.user_id_from_access_token(access_token)
+        if not user_id or not self.enabled or not access_token:
+            return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self.url}/rest/v1/profiles", headers=headers, params={"select": "role", "id": f"eq.{user_id}", "limit": "1"})
+                response.raise_for_status()
+                rows = response.json()
+                if not rows or rows[0].get("role") not in ("moderator", "admin"):
+                    return None
+                return ModeratorContext(user_id=user_id, role=str(rows[0]["role"]), aal=self._token_aal(access_token))
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return None
+
+    async def pending_moderation_reports(self) -> list[dict]:
+        if not self.enabled:
+            raise RuntimeError("Secure report storage is not configured.")
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(f"{self.url}/rest/v1/scam_reports", headers=headers, params={"select": "id,narrative,created_at,incident_at", "status": "eq.pending", "order": "created_at.asc", "limit": "50"})
+                response.raise_for_status()
+                reports = response.json()
+                if not reports:
+                    return []
+                ids = ",".join(str(report["id"]) for report in reports)
+                entity_response = await client.get(f"{self.url}/rest/v1/reported_entities", headers=headers, params={"select": "report_id,entity_type,entity_last4", "report_id": f"in.({ids})"})
+                entity_response.raise_for_status()
+                entities: dict[str, list[dict]] = {}
+                for entity in entity_response.json():
+                    entities.setdefault(str(entity["report_id"]), []).append({"entity_type": entity["entity_type"], "entity_last4": entity.get("entity_last4")})
+
+                # Structured reporting is optional for backwards-compatible projects.
+                structured: dict[str, dict] = {}
+                structured_response = await client.get(f"{self.url}/rest/v1/scam_reports", headers=headers, params={"select": "id,scam_type,payment_provider,amount_range,incident_channel,redacted_evidence,duplicate_count,duplicate_of,privacy_notice_version,training_consent", "id": f"in.({ids})"})
+                if structured_response.is_success:
+                    structured = {str(row["id"]): row for row in structured_response.json()}
+
+                training: dict[str, list[dict]] = {}
+                training_response = await client.get(f"{self.url}/rest/v1/training_examples", headers=headers, params={"select": "id,report_id,text_redacted,status", "report_id": f"in.({ids})"})
+                if training_response.is_success:
+                    for example in training_response.json():
+                        training.setdefault(str(example["report_id"]), []).append({"id": example["id"], "text_redacted": example["text_redacted"], "status": example["status"]})
+
+                output = []
+                for report in reports:
+                    extra = structured.get(str(report["id"]), {})
+                    output.append({
+                        **report,
+                        "scam_type": extra.get("scam_type", "other"), "payment_provider": extra.get("payment_provider", "not_applicable"),
+                        "amount_range": extra.get("amount_range", "not_stated"), "incident_channel": extra.get("incident_channel", "other"),
+                        "redacted_evidence": extra.get("redacted_evidence"), "duplicate_count": extra.get("duplicate_count", 0), "duplicate_of": extra.get("duplicate_of"),
+                        "privacy_notice_version": extra.get("privacy_notice_version", "not recorded"), "training_consent": extra.get("training_consent", False),
+                        "reported_entities": entities.get(str(report["id"]), []), "training_examples": training.get(str(report["id"]), []),
+                    })
+                return output
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError("The moderation queue is temporarily unavailable.") from error
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            raise RuntimeError("The moderation queue is temporarily unavailable.")
+
+    async def moderate_scam_report(self, report_id: str, moderator_id: str, status: str, reason: str) -> bool:
+        if not self.enabled:
+            raise RuntimeError("Secure report storage is not configured.")
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}", "Content-Type": "application/json", "Prefer": "return=representation"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                reviewed = await client.patch(f"{self.url}/rest/v1/scam_reports?id=eq.{report_id}&status=eq.pending", headers=headers, json={"status": status, "reviewed_by": moderator_id, "reviewed_at": datetime.now(UTC).isoformat()})
+                reviewed.raise_for_status()
+                if not reviewed.json():
+                    return False
+                await client.patch(f"{self.url}/rest/v1/reported_entities?report_id=eq.{report_id}&status=eq.pending", headers={**headers, "Prefer": "return=minimal"}, json={"status": status})
+                await client.post(f"{self.url}/rest/v1/moderation_actions", headers={**headers, "Prefer": "return=minimal"}, json={"report_id": report_id, "moderator_id": moderator_id, "action": status, "reason": reason.strip() or None})
+                await client.patch(f"{self.url}/rest/v1/training_examples?report_id=eq.{report_id}&status=eq.pending", headers={**headers, "Prefer": "return=minimal"}, json={"status": "approved" if status == "confirmed" else "rejected", "reviewed_by": moderator_id, "reviewed_at": datetime.now(UTC).isoformat()})
+                await client.post(f"{self.url}/rest/v1/audit_logs", headers={**headers, "Prefer": "return=minimal"}, json={"actor_id": moderator_id, "action": "report_moderated", "resource_type": "scam_report", "resource_id": report_id, "metadata": {"status": status}})
+                return True
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError("The moderation decision could not be saved. Please try again.") from error
+        except httpx.HTTPError as error:
+            raise RuntimeError("The moderation decision could not be saved. Please try again.") from error
 
     async def submit_scam_report(self, user_id: str, report: dict) -> str:
         """Store a pending report with the service role after authenticating its owner.
