@@ -240,7 +240,7 @@ class SupabaseRepository:
                 structured_response = await client.get(
                     f"{self.url}/rest/v1/scam_reports",
                     headers=headers,
-                    params={"select": "id,scam_type,payment_provider,incident_channel", "id": f"in.({ids})"},
+                    params={"select": "id,scam_type,payment_provider,incident_channel,public_contributor_opt_in", "id": f"in.({ids})"},
                 )
                 if structured_response.is_success:
                     structured = {str(row["id"]): row for row in structured_response.json()}
@@ -250,6 +250,7 @@ class SupabaseRepository:
                     "scam_type": structured.get(str(report["id"]), {}).get("scam_type", "other"),
                     "payment_provider": structured.get(str(report["id"]), {}).get("payment_provider", "not_applicable"),
                     "incident_channel": structured.get(str(report["id"]), {}).get("incident_channel", "other"),
+                    "public_contributor_opt_in": structured.get(str(report["id"]), {}).get("public_contributor_opt_in", False),
                     "reported_entities": entities.get(str(report["id"]), []),
                 } for report in reports]
         except httpx.HTTPStatusError as error:

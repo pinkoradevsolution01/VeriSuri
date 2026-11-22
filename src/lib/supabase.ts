@@ -247,7 +247,7 @@ export type ModerationReport = {
 
 export type ModeratedAlertDraft = { title: string; summary: string; severity: 'low' | 'medium' | 'high'; sourceName: string; sourceUrl: string; affectedPlatform: string; region?: string; reviewAt: string; expiresAt: string }
 export type ModerationAlert = ModeratedAlertDraft & { id: string; status: 'pending'; created_at: string }
-export type MyReport = { id: string; status: 'pending' | 'confirmed' | 'rejected'; created_at: string; reviewed_at: string | null; scam_type: string; payment_provider: string; incident_channel: string; reported_entities: { entity_type: ReportEntityType; entity_last4: string | null }[] }
+export type MyReport = { id: string; status: 'pending' | 'confirmed' | 'rejected'; created_at: string; reviewed_at: string | null; scam_type: string; payment_provider: string; incident_channel: string; public_contributor_opt_in: boolean; reported_entities: { entity_type: ReportEntityType; entity_last4: string | null }[] }
 export type EvidenceVaultItem = { id: string; item_type: 'screenshot' | 'transaction_reference' | 'note'; filename: string | null; transaction_reference: string | null; occurred_at: string | null; note: string | null; created_at: string }
 
 export async function submitScamReport(submission: ReportSubmission) {
@@ -291,6 +291,12 @@ export async function getModeratorQueue(): Promise<ModerationReport[]> {
 export async function getMyReports(): Promise<MyReport[]> {
   const response = await authenticatedApiRequest('/reports/mine')
   return response as MyReport[]
+}
+
+export async function setReportContributorVisibility(reportId: string, visible: boolean): Promise<void> {
+  if (!supabase) throw new Error('Sign in to manage contributor visibility.')
+  const { error } = await supabase.rpc('set_report_contributor_visibility', { p_report_id: reportId, p_visible: visible })
+  if (error) throw error
 }
 
 export async function getReadAlertIds(alertIds: string[]): Promise<string[]> {
