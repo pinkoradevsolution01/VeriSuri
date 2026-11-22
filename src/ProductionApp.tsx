@@ -359,7 +359,7 @@ function Alerts({ navigate }: { navigate: (view: View) => void }) {
   if (selected) return <SafetyReview alert={selected} back={() => setSelected(null)} />
   return <main className="screen tool-screen alerts-screen">
     <button className="back" onClick={() => navigate('home')}>Back to dashboard</button>
-    <div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Only moderator-verified advisories with an official source and active review date appear here.</p></div>
+    <div className="tool-heading"><span className="tool-icon"><Bell /></span><h1>Safety alerts</h1><p>Only moderator-verified official advisories and privacy-limited community alerts appear here.</p></div>
     <div className="alerts-toolbar"><button className="secondary-action" onClick={() => void markRead(items.map(item => item.id))} disabled={!items.length}>Mark all as read</button></div>
     <section className="alert-list">{items.length ? items.map(item => <article className={`alert-item verified-alert ${readIds.includes(item.id) ? '' : 'unread'} ${item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : ''}`} key={item.id}>
       <span><TriangleAlert /></span><div><p className="verified-label">Verified advisory</p><h3>{item.title}</h3><p>{item.summary}</p><div className="alert-details"><small>Platform: {item.affected_platform}</small>{item.region && <small>Region: {item.region}</small>}<small>Published: {new Date(item.published_at).toLocaleDateString()}</small><small>Review by: {new Date(item.review_at).toLocaleDateString()}</small></div><button className="alert-open-review" onClick={() => void openReview(item)}>Read safety review <ChevronRight /></button></div>
