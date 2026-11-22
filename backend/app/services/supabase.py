@@ -70,6 +70,15 @@ class SupabaseRepository:
         """Extract one supported identifier when a member pastes the surrounding message."""
         clean = value.strip()
         if entity_type == "url":
+            # Messages and screenshots often escape or defang a URL. Normalize
+            # these common safe-copy forms before extracting the destination.
+            clean = re.sub(r"(?i)\b(https?)\s*\\+\s*:\s*", r"\1:", clean)
+            clean = re.sub(
+                r"(?i)\b(hxxps?)\s*:\\s*//",
+                lambda match: "https://" if match.group(1).casefold() == "hxxps" else "http://",
+                clean,
+            )
+            clean = clean.replace("[.]", ".")
             match = re.search(r"(?i)(?:https?://|www\.)[^\s<>\"']+", clean)
             return match.group(0).rstrip(".,;:!?)]}”’") if match else clean
         if entity_type in {"gcash", "maya", "phone"}:

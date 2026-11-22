@@ -28,6 +28,13 @@ class ReportMatchingTests(unittest.TestCase):
         message = "Your BDO account needs verification at https://bdoph.example/login?offer=1. Do not delay."
         self.assertEqual(SupabaseRepository.extract_reported_identifier("url", message), "https://bdoph.example/login?offer=1")
 
+    def test_message_paste_extracts_an_escaped_url_for_report_matching(self):
+        message = r"You may now increase your credit limit: https\://bdoph.me/?Credit.Card.Invitation-Offer.UNTIL-10/27/2026."
+        self.assertEqual(
+            SupabaseRepository.extract_reported_identifier("url", message),
+            "https://bdoph.me/?Credit.Card.Invitation-Offer.UNTIL-10/27/2026",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
