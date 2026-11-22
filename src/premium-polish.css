@@ -1,0 +1,50 @@
+/* Premium visual layer: shared depth, rhythm, and motion without changing app behavior. */
+:root{--premium-surface:linear-gradient(145deg,#092d3eeb,#041a29f5);--premium-surface-strong:linear-gradient(135deg,#0b4053f2 0%,#072b3cf5 48%,#041c2af8 100%);--premium-border:#4be7e255;--premium-shadow:0 22px 52px #01070b70,0 1px 0 #a8ffff10 inset;--premium-glow:0 0 0 1px #69ffff0a,0 18px 44px #00dce418}
+
+.app-canvas{background:radial-gradient(circle at 13% 0%,#0a6e7c20,transparent 30rem),radial-gradient(circle at 94% 22%,#1668a424,transparent 31rem)}
+.app-canvas header{background:linear-gradient(104deg,#031827f4,#062537e8 48%,#041a2ae9)!important;box-shadow:0 1px #78ffff24,0 16px 42px #0108116e!important}
+.desktop-nav button{position:relative;transition:color .2s ease,background .2s ease,transform .2s ease}
+.desktop-nav button:after{content:"";position:absolute;right:14px;bottom:4px;left:14px;height:2px;border-radius:99px;background:#46f7f3;box-shadow:0 0 10px #00eee9;opacity:0;transform:scaleX(.45);transition:opacity .2s ease,transform .2s ease}
+.desktop-nav button.active:after,.desktop-nav button:hover:after{opacity:1;transform:scaleX(1)}
+.auth-button,.security-button,.alert-button,.a11y-open{box-shadow:0 8px 20px #00000032;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease!important}
+.auth-button:hover,.security-button:hover,.alert-button:hover,.a11y-open:hover{transform:translateY(-2px);box-shadow:0 12px 26px #0008,0 0 0 1px #3ef6f333}
+
+.overview-hero,.hero{position:relative;isolation:isolate;box-shadow:var(--premium-shadow);border-color:#66f1ed5c;overflow:hidden}
+.overview-hero:before,.hero:before{content:"";position:absolute;z-index:-1;inset:0;background:radial-gradient(circle at 80% 17%,#4cf7ff20,transparent 23%),linear-gradient(118deg,transparent 34%,#27e9ed0d 68%,transparent);pointer-events:none}
+.overview-hero{background:radial-gradient(circle at 82% 38%,#00e8ed22,transparent 27%),linear-gradient(128deg,#0b3950,#062536 63%,#051d2c)!important}
+.hero{background:radial-gradient(circle at 90% 28%,#12dbe318,transparent 30%),linear-gradient(118deg,#07364b,#052433 62%,#06293a)!important}
+.overview-hero h1,.hero h1{letter-spacing:-.055em;text-wrap:balance}
+.overview-actions .primary-action,.member-band .primary-action{box-shadow:0 12px 26px #00dfe04a,0 0 0 1px #a2ffff47 inset}
+.primary-action{position:relative;overflow:hidden;isolation:isolate;background:linear-gradient(105deg,#24f5f3,#08cdd8 56%,#10b9d0)!important;box-shadow:0 10px 23px #00dfe03d,0 0 0 1px #d9ffff3d inset;transition:transform .2s ease,box-shadow .2s ease,filter .2s ease!important}
+.primary-action:before{content:"";position:absolute;z-index:-1;inset:0;background:linear-gradient(110deg,transparent 22%,#fff8 48%,transparent 73%);opacity:0;transform:translateX(-100%);transition:opacity .25s ease,transform .55s ease}
+.primary-action:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-2px);box-shadow:0 15px 30px #00e4e060,0 0 0 1px #e9ffff6e inset}
+.primary-action:hover:not(:disabled):before{opacity:.5;transform:translateX(100%)}
+.secondary-action{border-color:#4cdde273!important;background:linear-gradient(145deg,#0a3547e8,#062332e8)!important;box-shadow:0 9px 20px #0000002e,0 1px #ffffff12 inset;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease!important}
+.secondary-action:hover{transform:translateY(-2px);box-shadow:0 14px 27px #0008,0 0 0 1px #49efed2e inset}
+
+.feature-card,.how-grid article,.plan-card,.verified-preview-grid article,.vault-card,.recovery-card,.moderated-alert-panel,.privacy-card,.recommendation-card,.explainability-card,.screening-evidence{box-shadow:var(--premium-shadow);border-color:var(--premium-border)}
+.feature-card{background:var(--premium-surface)!important;position:relative;overflow:hidden}
+.feature-card:before{content:"";position:absolute;inset:0;background:linear-gradient(132deg,#8affff16,transparent 35%,#00e5ea0e);opacity:.8;pointer-events:none}
+.feature-card:hover{box-shadow:var(--premium-glow);transform:translateY(-6px) scale(1.012)!important}
+.feature-icon{width:48px;height:48px;border:1px solid #5af4ef55;border-radius:14px;background:linear-gradient(145deg,#0b5364,#073346);box-shadow:0 10px 22px #0005,0 0 20px #00e8ed1e;display:grid;place-items:center}
+.feature-icon svg{margin:0!important}
+.how-grid article,.plan-card,.verified-preview-grid article{background:var(--premium-surface)!important;transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease!important}
+.how-grid article:hover,.plan-card:hover,.verified-preview-grid article:hover{border-color:#66f4efb0;box-shadow:var(--premium-glow);transform:translateY(-5px)}
+.plan-card.current{background:var(--premium-surface-strong)!important;box-shadow:0 0 0 1px #48f1e07a inset,0 22px 50px #0008,0 0 44px #00dfdc19}
+.plan-card.current:before{content:"";width:7px;height:7px;margin-right:7px;border-radius:50%;background:#3df2e9;box-shadow:0 0 12px #00f4eb;display:inline-block}
+.member-band{background:linear-gradient(112deg,#09495c,#073041 54%,#062536)!important;box-shadow:var(--premium-shadow);border-color:#58eee978}
+
+.report-strip,.recovery-strip{box-shadow:0 14px 30px #0006,0 1px #ffffff10 inset;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease!important}
+.report-strip:hover,.recovery-strip:hover{transform:translateY(-3px);box-shadow:0 19px 36px #0009,0 0 0 1px #55eee92c inset}
+.result-card,.risk-card{box-shadow:0 20px 44px #0008,0 1px #ffffff12 inset}
+.recommendation-card,.action-plan,.explainability-card,.screening-evidence{background:var(--premium-surface)!important}
+.field{background:#031c2ae8!important;box-shadow:0 6px 16px #00000032 inset,0 1px #ffffff0d}
+.field:focus-within{box-shadow:0 0 0 3px #00e9ed18,0 12px 28px #0006!important}
+.alert-item,.verified-alert{background:linear-gradient(125deg,#082c3b,#051d2c)!important;box-shadow:0 10px 25px #00000042,0 1px #ffffff0e inset}
+.bottom-nav{background:linear-gradient(145deg,#052539f5,#031724fa)!important;box-shadow:0 18px 42px #000c,0 0 0 1px #6aeff23b inset!important}
+.bottom-nav button{border-radius:12px;transition:background .2s ease,color .2s ease,transform .2s ease!important}
+.bottom-nav button.active{background:#0b5263a8;box-shadow:0 0 0 1px #55f7ef38 inset,0 8px 16px #0004}
+
+@media(max-width:900px){.overview-hero,.hero{border-radius:20px}.feature-icon{width:43px;height:43px;border-radius:13px}.mobile-nav-sheet{box-shadow:0 28px 68px #000e,0 0 0 1px #72fff433 inset}}
+@media(max-width:520px){.overview-hero,.hero{box-shadow:0 16px 32px #0008}.feature-card{border-radius:15px}.feature-card:hover{transform:translateY(-3px) scale(1.005)!important}.how-grid article:hover,.plan-card:hover,.verified-preview-grid article:hover{transform:translateY(-3px)}}
+@media(prefers-reduced-motion:reduce){.primary-action:before{display:none}.feature-card,.how-grid article,.plan-card,.verified-preview-grid article,.primary-action,.secondary-action,.report-strip,.recovery-strip{transition:none!important}}

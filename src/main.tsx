@@ -8,6 +8,7 @@ import './free-plan.css'
 import './mobile-pwa.css'
 import './responsive-shell.css'
 import './mobile-navigation.css'
+import './premium-polish.css'
 
 if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', () => {
