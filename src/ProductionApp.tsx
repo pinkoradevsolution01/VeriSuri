@@ -279,16 +279,17 @@ function MyReports({ navigate }: { navigate: (view: View) => void }) {
 function Moderation({ navigate }: { navigate: (view: View) => void }) {
   const [queue, setQueue] = useState<ModerationReport[]>([])
   const [notice, setNotice] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState<string | null>(null)
-  const load = () => { setLoading(true); setNotice(''); getModeratorQueue().then(setQueue).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to load moderation queue.')).finally(() => setLoading(false)) }
+  const load = () => { setLoading(true); setLoadError(''); getModeratorQueue().then(setQueue).catch(error => setLoadError(error instanceof Error ? error.message : 'Unable to load moderation queue.')).finally(() => setLoading(false)) }
   useEffect(() => { load() }, [])
   const decide = async (report: ModerationReport, decision: 'confirmed' | 'rejected') => { setActive(report.id); try { await reviewScamReport(report.id, decision, decision === 'confirmed' ? 'Verified by moderator review.' : 'Not sufficiently verified.'); setQueue(current => current.filter(item => item.id !== report.id)); setNotice(`Report ${decision}.`) } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to save review.') } finally { setActive(null) } }
   return <main className="screen tool-screen moderation-screen">
     <button className="back" onClick={() => navigate('home')}>Back to dashboard</button>
     <div className="tool-heading"><span className="tool-icon"><ShieldCheck /></span><h1>Moderation queue</h1><p>Confirm reports only when evidence is adequate. Confirmed results can affect community matching.</p></div>
     <button className="secondary-action moderation-refresh" onClick={load} disabled={loading}>{loading ? 'Refreshing queue...' : 'Refresh queue'}</button>
-    {loading ? <p className="privacy-note">Loading pending reports...</p> : <section className="moderation-list">{queue.length ? queue.map(report => <article className="moderation-card" key={report.id}>
+    {loading ? <p className="privacy-note">Loading pending reports...</p> : loadError ? <section className="moderation-access-error" role="alert"><h2>Moderation queue is not available for this session</h2><p>{loadError}</p><p>Reports remain safely stored as pending. Complete the required access step, then refresh the queue.</p>{loadError.includes('MFA') && <button className="secondary-action" onClick={() => navigate('security')}>Open account security</button>}</section> : <section className="moderation-list">{queue.length ? queue.map(report => <article className="moderation-card" key={report.id}>
       <div className="moderation-meta"><b>{report.reported_entities.map(entity => `${entity.entity_type} ending ${entity.entity_last4 ?? 'hidden'}`).join(' / ')}</b><small>{new Date(report.created_at).toLocaleString()}</small></div>
       <div className="moderation-details"><span>{report.scam_type.replace('_', ' ')}</span><span>{report.payment_provider.replace('_', ' ')}</span><span>{report.amount_range.replace(/_/g, ' ')}</span><span>{report.incident_channel.replace(/_/g, ' ')}</span>{report.incident_at && <span>{new Date(report.incident_at).toLocaleString()}</span>}</div>
       {report.duplicate_count > 0 && <p className="moderation-duplicate">Possible duplicate: {report.duplicate_count} existing pending or confirmed report(s) share this protected identifier. Review independently before deciding.</p>}
@@ -298,7 +299,6 @@ function Moderation({ navigate }: { navigate: (view: View) => void }) {
       <div className="moderation-actions"><button disabled={active === report.id} onClick={() => decide(report, 'rejected')}>Reject</button><button className="approve" disabled={active === report.id} onClick={() => decide(report, 'confirmed')}>{active === report.id ? 'Saving...' : 'Confirm report'}</button></div>
     </article>) : <p className="empty-state">No pending reports are currently in this queue. Newly submitted reports stay private until they are loaded here and reviewed. Use Refresh queue after a new submission.</p>}</section>}
     <ModeratedAlertPanel />
-    {notice.includes('MFA') && <button className="secondary-action" onClick={() => navigate('security')}>Open account security</button>}
     {notice && <p className="privacy-note" role="status">{notice}</p>}
   </main>
 }
