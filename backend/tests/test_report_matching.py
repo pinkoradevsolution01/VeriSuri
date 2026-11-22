@@ -20,6 +20,14 @@ class ReportMatchingTests(unittest.TestCase):
         self.assertEqual(SupabaseRepository.matching_entity_types("maya"), ["gcash", "maya", "phone"])
         self.assertEqual(SupabaseRepository.matching_entity_types("bank"), ["bank"])
 
+    def test_message_paste_extracts_a_mobile_identifier_for_matching(self):
+        message = "Send the payment now to Maya number +63 917-123-4567 to avoid cancellation."
+        self.assertEqual(SupabaseRepository.extract_reported_identifier("maya", message), "+63 917-123-4567")
+
+    def test_message_paste_extracts_url_for_report_matching(self):
+        message = "Your BDO account needs verification at https://bdoph.example/login?offer=1. Do not delay."
+        self.assertEqual(SupabaseRepository.extract_reported_identifier("url", message), "https://bdoph.example/login?offer=1")
+
 
 if __name__ == "__main__":
     unittest.main()

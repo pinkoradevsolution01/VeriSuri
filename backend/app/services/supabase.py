@@ -65,6 +65,17 @@ class SupabaseRepository:
             except ValueError:
                 return clean
         return re.sub(r"\s+", "", clean)
+    @staticmethod
+    def extract_reported_identifier(entity_type: str, value: str) -> str:
+        """Extract one supported identifier when a member pastes the surrounding message."""
+        clean = value.strip()
+        if entity_type == "url":
+            match = re.search(r"(?i)(?:https?://|www\.)[^\s<>\"']+", clean)
+            return match.group(0).rstrip(".,;:!?)]}”’") if match else clean
+        if entity_type in {"gcash", "maya", "phone"}:
+            match = re.search(r"(?<!\d)(?:0|\+?63[\s-]?)?9(?:[\s-]?\d){9}(?!\d)", clean)
+            return match.group(0) if match else clean
+        return clean
     @classmethod
     def reported_identifier_hashes(cls, entity_type: str, value: str) -> list[str]:
         # Keep the raw legacy hash during the transition; stored reports never expose raw values.
@@ -122,6 +133,7 @@ class SupabaseRepository:
             return []
     async def report_count(self, entity_type: str, value: str) -> int | None:
         if not self.enabled: return None
+        value = self.extract_reported_identifier(entity_type, value)
         headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}", "Prefer": "count=exact"}
         types = self.matching_entity_types(entity_type)
         hashes = self.reported_identifier_hashes(entity_type, value)
