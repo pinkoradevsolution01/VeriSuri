@@ -2,6 +2,7 @@ import base64
 import hashlib
 import httpx
 import json
+import re
 from urllib.parse import urlsplit
 from datetime import UTC, datetime
 from dataclasses import dataclass
@@ -42,6 +43,37 @@ class SupabaseRepository:
     def enabled(self) -> bool: return bool(self.url and self.key)
     @staticmethod
     def identifier_hash(value: str) -> str: return hashlib.sha256(value.strip().lower().encode()).hexdigest()
+    @staticmethod
+    def normalize_reported_identifier(entity_type: str, value: str) -> str:
+        """Canonicalize equivalent Philippine payment/phone formatting before hashing."""
+        clean = value.strip().casefold()
+        if entity_type in {"gcash", "maya", "phone"}:
+            digits = re.sub(r"\D", "", clean)
+            if digits.startswith("63") and len(digits) == 12 and digits[2] == "9":
+                return f"0{digits[2:]}"
+            if len(digits) == 10 and digits.startswith("9"):
+                return f"0{digits}"
+            return digits or clean
+        if entity_type == "bank":
+            return re.sub(r"[\s-]", "", clean)
+        if entity_type == "url":
+            try:
+                target = urlsplit(clean if "://" in clean else f"https://{clean}")
+                host = (target.hostname or "").casefold()
+                path = target.path.rstrip("/") or "/"
+                return f"{host}{path}" + (f"?{target.query}" if target.query else "")
+            except ValueError:
+                return clean
+        return re.sub(r"\s+", "", clean)
+    @classmethod
+    def reported_identifier_hashes(cls, entity_type: str, value: str) -> list[str]:
+        # Keep the raw legacy hash during the transition; stored reports never expose raw values.
+        canonical = cls.normalize_reported_identifier(entity_type, value)
+        return list(dict.fromkeys([cls.identifier_hash(canonical), cls.identifier_hash(value)]))
+    @staticmethod
+    def matching_entity_types(entity_type: str) -> list[str]:
+        # A Philippine mobile number may be reported as a phone, GCash, or Maya recipient.
+        return ["gcash", "maya", "phone"] if entity_type in {"gcash", "maya", "phone"} else [entity_type]
     @staticmethod
     def public_reference(entity_type: str, value: str) -> str:
         """Create an inert, minimal reference for opted-in public listings."""
@@ -91,7 +123,14 @@ class SupabaseRepository:
     async def report_count(self, entity_type: str, value: str) -> int | None:
         if not self.enabled: return None
         headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}", "Prefer": "count=exact"}
-        params = {"select": "id", "entity_type": f"eq.{entity_type}", "entity_hash": f"eq.{self.identifier_hash(value)}", "status": "eq.confirmed"}
+        types = self.matching_entity_types(entity_type)
+        hashes = self.reported_identifier_hashes(entity_type, value)
+        params = {
+            "select": "id",
+            "entity_type": f"in.({','.join(types)})" if len(types) > 1 else f"eq.{types[0]}",
+            "entity_hash": f"in.({','.join(hashes)})" if len(hashes) > 1 else f"eq.{hashes[0]}",
+            "status": "eq.confirmed",
+        }
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(f"{self.url}/rest/v1/reported_entities", headers=headers, params=params); response.raise_for_status()
             return int(response.headers.get("content-range", "*/0").split("/")[-1])
@@ -310,8 +349,8 @@ class SupabaseRepository:
                 entity = {
                     "report_id": report_id,
                     "entity_type": report["entity_type"],
-                    "entity_hash": self.identifier_hash(report["entity_value"]),
-                    "entity_last4": report["entity_value"].strip()[-4:],
+                    "entity_hash": self.identifier_hash(self.normalize_reported_identifier(report["entity_type"], report["entity_value"])),
+                    "entity_last4": self.normalize_reported_identifier(report["entity_type"], report["entity_value"])[-4:],
                 }
                 entity_response = await client.post(f"{self.url}/rest/v1/reported_entities", headers=headers, json=entity)
                 entity_response.raise_for_status()
