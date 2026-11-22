@@ -25,6 +25,7 @@ export type Assessment = {
   source: string
 }
 export type Alert = { id: string; title: string; summary: string; severity: RiskLevel; published_at: string; source_name: string; source_url: string; affected_platform: string; region: string | null; review_at: string; expires_at: string }
+export type Contributor = { id: string; contributor_name: string; reference: string; scam_type: string; incident_channel: string; created_at: string }
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
@@ -51,4 +52,10 @@ export async function getAlerts(): Promise<Alert[]> {
   const response = await fetch(`${baseUrl}/alerts`)
   if (!response.ok) throw new Error('Alerts are unavailable.')
   return response.json() as Promise<Alert[]>
+}
+
+export async function getContributors(): Promise<Contributor[]> {
+  const response = await fetch(`${baseUrl}/contributors`)
+  if (!response.ok) throw new Error('Contributors are unavailable.')
+  return response.json() as Promise<Contributor[]>
 }

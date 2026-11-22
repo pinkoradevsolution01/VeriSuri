@@ -2,6 +2,7 @@ import base64
 import hashlib
 import httpx
 import json
+from urllib.parse import urlsplit
 from datetime import UTC, datetime
 from dataclasses import dataclass
 from backend.app.config import get_settings
@@ -41,6 +42,52 @@ class SupabaseRepository:
     def enabled(self) -> bool: return bool(self.url and self.key)
     @staticmethod
     def identifier_hash(value: str) -> str: return hashlib.sha256(value.strip().lower().encode()).hexdigest()
+    @staticmethod
+    def public_reference(entity_type: str, value: str) -> str:
+        """Create an inert, minimal reference for opted-in public listings."""
+        clean = value.strip()
+        if entity_type == "url":
+            try:
+                target = urlsplit(clean if "://" in clean else f"https://{clean}")
+                host = target.hostname or "submitted URL"
+                return f"{host.lower()}/…"
+            except ValueError:
+                return "Submitted URL (redacted preview)"
+        return f"{entity_type.replace('_', ' ').title()} ending {clean[-4:]}"
+
+    async def profile_display_name(self, user_id: str) -> str | None:
+        if not self.enabled:
+            return None
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self.url}/rest/v1/profiles", headers=headers, params={"select": "display_name", "id": f"eq.{user_id}", "limit": "1"})
+                response.raise_for_status()
+                rows = response.json()
+                name = str(rows[0].get("display_name") or "").strip() if rows else ""
+                return name[:80] or None
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return None
+
+    async def public_contributors(self) -> list[dict]:
+        if not self.enabled:
+            return []
+        headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
+        params = {
+            "select": "id,public_contributor_name,public_reference,scam_type,incident_channel,created_at",
+            "status": "eq.confirmed", "public_contributor_opt_in": "eq.true", "order": "created_at.desc", "limit": "50",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                response = await client.get(f"{self.url}/rest/v1/scam_reports", headers=headers, params=params)
+                if not response.is_success:
+                    return []
+                return [
+                    {"id": str(row["id"]), "contributor_name": row.get("public_contributor_name") or "Verified contributor", "reference": row.get("public_reference") or "Redacted report reference", "scam_type": row.get("scam_type") or "other", "incident_channel": row.get("incident_channel") or "other", "created_at": row["created_at"]}
+                    for row in response.json()
+                ]
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return []
     async def report_count(self, entity_type: str, value: str) -> int | None:
         if not self.enabled: return None
         headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}", "Prefer": "count=exact"}
@@ -213,6 +260,8 @@ class SupabaseRepository:
 
                 # Enrich projects that have the structured-report migration. An
                 # older project still keeps the safe, moderation-only core report.
+                publish_contributor = bool(report.get("public_contributor_consent"))
+                contributor_name = await self.profile_display_name(user_id) if publish_contributor else None
                 structured = {
                     "scam_type": report["scam_type"],
                     "payment_provider": report["payment_provider"],
@@ -221,6 +270,9 @@ class SupabaseRepository:
                     "redacted_evidence": report.get("redacted_evidence") or None,
                     "privacy_notice_version": report["privacy_notice_version"],
                     "training_consent": report["training_consent"],
+                    "public_contributor_opt_in": publish_contributor,
+                    "public_contributor_name": contributor_name,
+                    "public_reference": self.public_reference(report["entity_type"], report["entity_value"]) if publish_contributor else None,
                 }
                 await client.patch(f"{self.url}/rest/v1/scam_reports?id=eq.{report_id}", headers={**headers, "Prefer": "return=minimal"}, json=structured)
 

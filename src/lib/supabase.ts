@@ -205,6 +205,7 @@ export type ReportSubmission = {
   acknowledgesSafeSubmission: boolean
   trainingConsent: boolean
   redactedTrainingSample?: string
+  publicContributorConsent: boolean
 }
 
 export type ModerationReport = {
@@ -253,6 +254,7 @@ export async function submitScamReport(submission: ReportSubmission) {
       acknowledges_safe_submission: submission.acknowledgesSafeSubmission,
       training_consent: submission.trainingConsent,
       redacted_training_sample: submission.trainingConsent ? submission.redactedTrainingSample?.trim() || null : null,
+      public_contributor_consent: submission.publicContributorConsent,
     }),
   })
   if (!response.ok) {

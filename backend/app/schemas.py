@@ -86,6 +86,7 @@ class ScamReportCreate(BaseModel):
     acknowledges_safe_submission: bool
     training_consent: bool = False
     redacted_training_sample: str | None = Field(default=None, max_length=6000)
+    public_contributor_consent: bool = False
 
 
 class ModerationDecision(BaseModel):

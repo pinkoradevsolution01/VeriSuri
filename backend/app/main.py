@@ -151,6 +151,11 @@ async def create_report(payload: ScamReportCreate, request: Request) -> dict[str
         raise HTTPException(status_code=503, detail=str(error)) from error
     return {"id": report_id, "status": "pending"}
 
+@app.get("/api/v1/contributors")
+async def contributors() -> list[dict]:
+    """Public, opt-in, moderator-confirmed contributor acknowledgements only."""
+    return await repository.public_contributors()
+
 async def require_moderator(request: Request):
     token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     moderator = await repository.moderator_context_from_access_token(token)
