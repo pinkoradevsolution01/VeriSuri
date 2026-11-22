@@ -57,6 +57,7 @@ class SupabaseRepository:
         if entity_type == "bank":
             return re.sub(r"[\s-]", "", clean)
         if entity_type == "url":
+            clean = SupabaseRepository.extract_reported_identifier("url", value).casefold()
             try:
                 target = urlsplit(clean if "://" in clean else f"https://{clean}")
                 host = (target.hostname or "").casefold()

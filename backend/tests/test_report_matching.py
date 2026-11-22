@@ -34,6 +34,10 @@ class ReportMatchingTests(unittest.TestCase):
             SupabaseRepository.extract_reported_identifier("url", message),
             "https://bdoph.me/?Credit.Card.Invitation-Offer.UNTIL-10/27/2026",
         )
+        self.assertEqual(
+            SupabaseRepository.normalize_reported_identifier("url", message),
+            "bdoph.me/?credit.card.invitation-offer.until-10/27/2026",
+        )
 
 
 if __name__ == "__main__":
