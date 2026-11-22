@@ -44,6 +44,25 @@ export async function signOut() {
   if (error) throw error
 }
 
+export async function getProfileCodename(): Promise<string | null | undefined> {
+  if (!supabase) return undefined
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return undefined
+  const { data, error } = await supabase.from('profiles').select('codename').eq('id', user.id).maybeSingle()
+  if (error) return undefined
+  return typeof data?.codename === 'string' && data.codename.trim() ? data.codename.trim() : null
+}
+
+export async function setProfileCodename(codename: string): Promise<string> {
+  if (!supabase) throw new Error('Sign-in is not configured yet.')
+  const { data, error } = await supabase.rpc('set_profile_codename', { p_codename: codename.trim() })
+  if (error) {
+    if (error.code === '23505') throw new Error('That codename is already in use. Choose another one.')
+    throw error
+  }
+  return String(data)
+}
+
 export type MfaFactor = { id: string; friendlyName: string | null; createdAt: string | null; status: string }
 export type AccountSecurityState = {
   currentLevel: string | null

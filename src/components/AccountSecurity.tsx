@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Activity, CheckCircle2, KeyRound, Laptop, LockKeyhole, LogOut, RefreshCw, ShieldCheck, Smartphone, Trash2 } from 'lucide-react'
 import {
   beginMfaEnrollment, completeMfaChallenge, disableMfaFactor, endOtherSessions,
-  getAccountSecurityState, getRecognizedDevices, getSecurityEvents, isSupabaseConfigured,
-  registerCurrentDevice, removeRecognizedDevice, type AccountSecurityState, type MfaEnrollment,
+  getAccountSecurityState, getProfileCodename, getRecognizedDevices, getSecurityEvents, isSupabaseConfigured,
+  registerCurrentDevice, removeRecognizedDevice, setProfileCodename, type AccountSecurityState, type MfaEnrollment,
   type RecognizedDevice, type SecurityEvent, verifyMfaEnrollment,
 } from '../lib/supabase'
 
@@ -20,6 +20,7 @@ export function AccountSecurity({ back, isStaff }: Props) {
   const [code, setCode] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState('')
+  const [codename, setCodename] = useState('')
 
   const load = async () => {
     if (!isSupabaseConfigured) return
@@ -28,12 +29,14 @@ export function AccountSecurity({ back, isStaff }: Props) {
       const current = await getAccountSecurityState()
       setSecurity(current)
       await registerCurrentDevice().catch(() => undefined)
-      const [nextDevices, nextEvents] = await Promise.all([
+      const [nextDevices, nextEvents, nextCodename] = await Promise.all([
         getRecognizedDevices().catch(() => []),
         getSecurityEvents().catch(() => []),
+        getProfileCodename().catch(() => undefined),
       ])
       setDevices(nextDevices)
       setEvents(nextEvents)
+      if (typeof nextCodename === 'string') setCodename(nextCodename)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load account security.')
     }
@@ -85,12 +88,25 @@ export function AccountSecurity({ back, isStaff }: Props) {
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not remove authenticator-app MFA.') }
     finally { setBusy('') }
   }
+  const saveCodename = async () => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9 _-]{2,29}$/.test(codename.trim())) return setNotice('Use 3–30 letters, numbers, spaces, hyphens, or underscores for your codename.')
+    setBusy('codename'); setNotice('')
+    try { const saved = await setProfileCodename(codename); setCodename(saved); setNotice('Your codename was updated. Confirmed opt-in contributor acknowledgements now use it.') }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Your codename could not be updated.') }
+    finally { setBusy('') }
+  }
 
   if (!isSupabaseConfigured) return <main className="screen tool-screen security-screen"><button className="back" onClick={back}>Back to overview</button><div className="tool-heading"><span className="tool-icon"><LockKeyhole /></span><h1>Account security</h1><p>Connect Supabase authentication to manage your account security.</p></div></main>
 
   return <main className="screen tool-screen security-screen">
     <button className="back" onClick={back}>Back to overview</button>
     <div className="tool-heading"><span className="tool-icon"><LockKeyhole /></span><h1>Account security</h1><p>Protect your VeriSuri account, review recognized devices, and manage active access.</p></div>
+
+    <section className="security-card codename-card" aria-labelledby="codename-title">
+      <div className="security-card-heading"><div><span className="security-icon"><ShieldCheck /></span><h2 id="codename-title">VeriSuri codename</h2></div></div>
+      <p>Your codename is separate from your email and is only shown in Contributors when you opt in and a moderator confirms a report.</p>
+      <div className="codename-control"><label htmlFor="account-codename">Codename<input id="account-codename" autoComplete="nickname" maxLength={30} value={codename} onChange={event => setCodename(event.target.value)} placeholder="Choose a codename" /></label><button className="secondary-action" disabled={busy === 'codename'} onClick={() => void saveCodename()}>{busy === 'codename' ? 'Saving…' : 'Save codename'}</button></div>
+    </section>
 
     <section className="security-card security-mfa" aria-labelledby="mfa-title">
       <div className="security-card-heading"><div><span className="security-icon"><KeyRound /></span><h2 id="mfa-title">Authenticator-app MFA</h2></div><span className={`security-status ${security?.currentLevel === 'aal2' ? 'secure' : ''}`}>{security?.currentLevel === 'aal2' ? 'MFA verified' : verifiedFactor ? 'Setup complete' : 'Optional'}</span></div>

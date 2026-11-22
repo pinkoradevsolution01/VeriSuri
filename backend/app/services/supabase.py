@@ -61,10 +61,10 @@ class SupabaseRepository:
         headers = {"apikey": self.key or "", "Authorization": f"Bearer {self.key or ''}"}
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self.url}/rest/v1/profiles", headers=headers, params={"select": "display_name", "id": f"eq.{user_id}", "limit": "1"})
+                response = await client.get(f"{self.url}/rest/v1/profiles", headers=headers, params={"select": "codename", "id": f"eq.{user_id}", "limit": "1"})
                 response.raise_for_status()
                 rows = response.json()
-                name = str(rows[0].get("display_name") or "").strip() if rows else ""
+                name = str(rows[0].get("codename") or "").strip() if rows else ""
                 return name[:80] or None
         except (httpx.HTTPError, KeyError, TypeError, ValueError):
             return None
