@@ -233,22 +233,32 @@ export async function submitScamReport(submission: ReportSubmission) {
   if (!supabase) throw new Error('Report submission is not configured yet.')
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Please sign in before submitting a report.')
-  const { error } = await supabase.rpc('submit_scam_report', {
-    p_entity_type: submission.entityType,
-    p_entity_value: submission.entityValue.trim(),
-    p_narrative: submission.narrative.trim(),
-    p_privacy_notice_version: submission.privacyNoticeVersion,
-    p_acknowledged_safe_submission: submission.acknowledgesSafeSubmission,
-    p_training_consent: submission.trainingConsent,
-    p_redacted_training_sample: submission.trainingConsent ? submission.redactedTrainingSample?.trim() || null : null,
-    p_scam_type: submission.scamType ?? 'other',
-    p_payment_provider: submission.paymentProvider ?? 'not_applicable',
-    p_amount_range: submission.amountRange ?? 'not_stated',
-    p_incident_at: submission.incidentAt || null,
-    p_incident_channel: submission.incidentChannel ?? 'other',
-    p_redacted_evidence: submission.redactedEvidence?.trim() || null,
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Your sign-in session has expired. Please sign in again before submitting a report.')
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+  const response = await fetch(`${baseUrl}/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({
+      entity_type: submission.entityType,
+      entity_value: submission.entityValue.trim(),
+      narrative: submission.narrative.trim(),
+      scam_type: submission.scamType ?? 'other',
+      payment_provider: submission.paymentProvider ?? 'not_applicable',
+      amount_range: submission.amountRange ?? 'not_stated',
+      incident_at: submission.incidentAt || null,
+      incident_channel: submission.incidentChannel ?? 'other',
+      redacted_evidence: submission.redactedEvidence?.trim() || null,
+      privacy_notice_version: submission.privacyNoticeVersion,
+      acknowledges_safe_submission: submission.acknowledgesSafeSubmission,
+      training_consent: submission.trainingConsent,
+      redacted_training_sample: submission.trainingConsent ? submission.redactedTrainingSample?.trim() || null : null,
+    }),
   })
-  if (error) throw error
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.detail ?? 'Unable to submit the report. Please try again.')
+  }
 }
 
 export async function getModeratorQueue(): Promise<ModerationReport[]> {

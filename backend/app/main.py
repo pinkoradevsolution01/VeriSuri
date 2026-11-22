@@ -132,9 +132,24 @@ async def check_payment(payload: PaymentRequest) -> Assessment: return await loo
 @app.post("/api/v1/reports/lookup", response_model=Assessment)
 async def report_lookup(payload: ReportLookupRequest) -> Assessment: return await lookup_entity(payload.identifier, payload.entity_type, "report")
 
-@app.post("/api/v1/reports", status_code=501)
-async def create_report(payload: ScamReportCreate) -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="Connect Supabase Auth before enabling report submission.")
+@app.post("/api/v1/reports", status_code=201)
+async def create_report(payload: ScamReportCreate, request: Request) -> dict[str, str]:
+    """Accept a signed-in user's redacted report for moderation."""
+    if not payload.acknowledges_safe_submission:
+        raise HTTPException(status_code=422, detail="Confirm that sensitive details were removed before submitting.")
+    if payload.redacted_evidence and len(payload.redacted_evidence.strip()) < 20:
+        raise HTTPException(status_code=422, detail="Redacted evidence must be at least 20 characters, or leave it blank.")
+    if payload.training_consent and (not payload.redacted_training_sample or len(payload.redacted_training_sample.strip()) < 30):
+        raise HTTPException(status_code=422, detail="A redacted training sample needs at least 30 characters when consent is selected.")
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    user_id = await repository.user_id_from_access_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Please sign in before submitting a report.")
+    try:
+        report_id = await repository.submit_scam_report(user_id, payload.model_dump())
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return {"id": report_id, "status": "pending"}
 
 @app.get("/api/v1/alerts", response_model=list[AlertItem])
 async def alerts() -> list[AlertItem]:

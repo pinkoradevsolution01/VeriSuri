@@ -76,6 +76,15 @@ class ScamReportCreate(BaseModel):
     entity_value: str = Field(min_length=3, max_length=500)
     narrative: str = Field(min_length=20, max_length=6000)
     incident_at: str | None = None
+    scam_type: str = Field(default="other", pattern="^(phishing|investment|marketplace|impersonation|loan|romance|job|delivery|other)$")
+    payment_provider: str = Field(default="not_applicable", pattern="^(gcash|maya|bank|card|crypto|not_applicable)$")
+    amount_range: str = Field(default="not_stated", pattern="^(under_1000|1000_4999|5000_19999|20000_99999|100000_plus|not_stated)$")
+    incident_channel: str = Field(default="other", pattern="^(sms|messaging_app|social_media|email|call|website|marketplace|other)$")
+    redacted_evidence: str | None = Field(default=None, max_length=6000)
+    privacy_notice_version: str = Field(min_length=1, max_length=80)
+    acknowledges_safe_submission: bool
+    training_consent: bool = False
+    redacted_training_sample: str | None = Field(default=None, max_length=6000)
 
 
 class AlertItem(BaseModel):

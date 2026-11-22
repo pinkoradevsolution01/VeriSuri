@@ -71,6 +71,89 @@ class SupabaseRepository:
         except httpx.HTTPError:
             return None
 
+    async def submit_scam_report(self, user_id: str, report: dict) -> str:
+        """Store a pending report with the service role after authenticating its owner.
+
+        This deliberately uses only the original report tables first, so a report can
+        be submitted even when an older Supabase project has not yet run optional
+        structured-report migrations. The identifier is never stored in plain text.
+        """
+        if not self.enabled:
+            raise RuntimeError("Secure report storage is not configured.")
+        headers = {
+            "apikey": self.key or "",
+            "Authorization": f"Bearer {self.key or ''}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+        }
+        report_payload = {
+            "reporter_id": user_id,
+            "narrative": report["narrative"].strip(),
+            "incident_at": report.get("incident_at") or None,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                created = await client.post(f"{self.url}/rest/v1/scam_reports", headers=headers, json=report_payload)
+                created.raise_for_status()
+                rows = created.json()
+                if not rows or not rows[0].get("id"):
+                    raise RuntimeError("Secure report storage did not return a report ID.")
+                report_id = str(rows[0]["id"])
+
+                entity = {
+                    "report_id": report_id,
+                    "entity_type": report["entity_type"],
+                    "entity_hash": self.identifier_hash(report["entity_value"]),
+                    "entity_last4": report["entity_value"].strip()[-4:],
+                }
+                entity_response = await client.post(f"{self.url}/rest/v1/reported_entities", headers=headers, json=entity)
+                entity_response.raise_for_status()
+
+                # Enrich projects that have the structured-report migration. An
+                # older project still keeps the safe, moderation-only core report.
+                structured = {
+                    "scam_type": report["scam_type"],
+                    "payment_provider": report["payment_provider"],
+                    "amount_range": report["amount_range"],
+                    "incident_channel": report["incident_channel"],
+                    "redacted_evidence": report.get("redacted_evidence") or None,
+                    "privacy_notice_version": report["privacy_notice_version"],
+                    "training_consent": report["training_consent"],
+                }
+                await client.patch(f"{self.url}/rest/v1/scam_reports?id=eq.{report_id}", headers={**headers, "Prefer": "return=minimal"}, json=structured)
+
+                # Consent is opt-in. If the training queue migration is present,
+                # retain the separate redacted sample for moderator approval only.
+                # A missing optional table must never prevent the scam report itself.
+                if report.get("training_consent") and report.get("redacted_training_sample"):
+                    await client.post(
+                        f"{self.url}/rest/v1/training_examples",
+                        headers={**headers, "Prefer": "return=minimal"},
+                        json={
+                            "report_id": report_id,
+                            "reporter_id": user_id,
+                            "text_redacted": report["redacted_training_sample"].strip(),
+                            "label": 1,
+                            "consent_version": report["privacy_notice_version"],
+                        },
+                    )
+
+                # Audit logging exists in the base schema. It contains no raw
+                # identifier, message, or evidence.
+                await client.post(
+                    f"{self.url}/rest/v1/audit_logs",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json={"actor_id": user_id, "action": "report_submitted", "resource_type": "scam_report", "resource_id": report_id, "metadata": {"entity_type": report["entity_type"], "training_consent": report["training_consent"]}},
+                )
+                return report_id
+        except httpx.HTTPStatusError as error:
+            status = error.response.status_code
+            if status in (401, 403):
+                raise RuntimeError("Secure report storage rejected this request. Check the Supabase service-role key on the API deployment.") from error
+            raise RuntimeError("Secure report storage is temporarily unavailable. Please try again shortly.") from error
+        except (httpx.HTTPError, ValueError, KeyError) as error:
+            raise RuntimeError("Secure report storage is temporarily unavailable. Please try again shortly.") from error
+
     async def consume_web_risk_quota(self, user_id: str) -> WebRiskQuota | None:
         if not self.enabled:
             return None
