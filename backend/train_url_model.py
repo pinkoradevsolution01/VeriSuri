@@ -12,8 +12,9 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, brier_score_loss, precision_recall_fscore_support, roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
+from urllib.parse import urlsplit
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -52,7 +53,11 @@ def main() -> None:
         )
     rows, validation = load_permissioned_url_rows(args.dataset, minimum_rows=args.minimum_rows)
     urls, labels = [row["url"] for row in rows], [int(row["label"]) for row in rows]
-    train_x, test_x, train_y, test_y = train_test_split(urls, labels, test_size=.2, random_state=42, stratify=labels)
+    groups = [urlsplit(url).hostname or url for url in urls]
+    splitter = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+    train_indexes, test_indexes = next(splitter.split(urls, labels, groups))
+    train_x, test_x = [urls[index] for index in train_indexes], [urls[index] for index in test_indexes]
+    train_y, test_y = [labels[index] for index in train_indexes], [labels[index] for index in test_indexes]
     model = CalibratedClassifierCV(
         Pipeline([("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=2, sublinear_tf=True)), ("classifier", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42))]),
         method="sigmoid", cv=3,
@@ -65,7 +70,7 @@ def main() -> None:
         "dataset_rows": len(rows), "train_rows": len(train_x), "test_rows": len(test_x),
         **metrics_for(test_y, probabilities), "dataset_validation": validation,
         "evaluation_protocol": {
-            "holdout": "Stratified 20% holdout; URLs are represented only by irreversible hashes in metadata.",
+            "holdout": "Stratified group holdout by hostname; no hostname appears in both training and test partitions.",
             "holdout_digest": hashlib.sha256("\n".join(sorted(holdout)).encode("utf-8")).hexdigest(),
             "calibration": "Sigmoid calibration with three folds fitted only on the training partition.",
         },

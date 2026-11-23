@@ -43,7 +43,8 @@ def main() -> None:
         raise SystemExit(f"{args.output} already exists. Use --overwrite only if you intend to replace it.")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    valid, skipped = 0, 0
+    valid, invalid_rows, duplicate_rows = 0, 0, 0
+    seen_urls: set[str] = set()
     with args.input.open(encoding="utf-8-sig", newline="") as source, args.output.open("w", encoding="utf-8", newline="") as target:
         reader = csv.DictReader(source)
         if not {"URL", "label"} <= set(reader.fieldnames or []):
@@ -53,11 +54,15 @@ def main() -> None:
         for row in reader:
             try:
                 url = canonical_url(row["URL"])
+                if url in seen_urls:
+                    duplicate_rows += 1
+                    continue
+                seen_urls.add(url)
                 # UCI documents 0 as phishing and 1 as legitimate. VeriSuri
                 # uses 1 as phishing and 0 as legitimate.
                 phishing = (row.get("label") or "").strip() == "0"
                 if (row.get("label") or "").strip() not in {"0", "1"}:
-                    skipped += 1
+                    invalid_rows += 1
                     continue
                 writer.writerow({
                     "url": url, "label": "1" if phishing else "0",
@@ -68,11 +73,13 @@ def main() -> None:
                 })
                 valid += 1
             except (TypeError, ValueError):
-                skipped += 1
+                invalid_rows += 1
     provenance = {
         "source_url": SOURCE_URL, "citation": DATASET_CITATION, "license": LICENSE,
         "retrieved_at": datetime.now(timezone.utc).isoformat(), "input_sha256": sha256(args.input),
-        "output_sha256": sha256(args.output), "rows_written": valid, "rows_skipped": skipped,
+        "output_sha256": sha256(args.output), "rows_written": valid,
+        "rows_skipped": invalid_rows + duplicate_rows, "invalid_rows_skipped": invalid_rows,
+        "duplicate_rows_skipped": duplicate_rows,
         "label_mapping": {"UCI 0": "VeriSuri phishing (1)", "UCI 1": "VeriSuri legitimate (0)"},
         "activation_notice": "Candidate only. Evaluate and obtain named human approval before deployment.",
     }
