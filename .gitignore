@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 backend/models/*.joblib
 backend/data/*.csv
+backend/data/raw/
 backend/research/output/
 backend/research/*.csv
 .sites-checkout/

@@ -56,3 +56,18 @@ false-positive-rate gates pass and a named reviewer approves it:
     python -m backend.approve_url_model backend/models/verisuri_url_v1.metrics.json --reviewer "reviewer-id"
 
 Never train this model from unreviewed reports or synthetic examples.
+
+### Licensed public candidate: UCI PhiUSIIL
+
+UCI dataset 967 is licensed CC BY 4.0 and contains labelled phishing and
+legitimate URLs. It can be used as a documented global baseline with
+attribution, but it is not Philippine-specific and cannot by itself establish
+production accuracy for Philippine scams. The importer records source, licence,
+retrieval time, hashes, and its label mapping in a provenance JSON file.
+
+Download the official UCI archive, then run:
+
+    python -m backend.import_phiusiil backend/data/raw/PhiUSIIL_Phishing_URL_Dataset.csv --allow-licensed-public-dataset --overwrite
+
+The generated approved_urls.csv remains a candidate dataset. Train, evaluate,
+and obtain named approval before the application will load the model.
