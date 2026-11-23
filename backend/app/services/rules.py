@@ -16,6 +16,28 @@ SCAM_PATTERNS: list[tuple[re.Pattern[str], str, int]] = [
 ]
 SUSPICIOUS_TLDS = {"xyz", "top", "click", "live", "shop", "site", "info", "buzz"}
 BRAND_TERMS = {"gcash", "maya", "bpi", "bdo", "metrobank", "unionbank", "paymaya"}
+URL_SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "shorturl.at", "tiny.one"}
+URL_LURE_TERMS = {"login", "verify", "verification", "secure", "activate", "claim", "reward", "credit", "limit", "otp"}
+
+def _edit_distance(left: str, right: str) -> int:
+    """Small dependency-free edit-distance helper for host-label lookalikes."""
+    previous = list(range(len(right) + 1))
+    for index, character in enumerate(left, 1):
+        current = [index]
+        for column, other in enumerate(right, 1):
+            current.append(min(previous[column] + 1, current[-1] + 1, previous[column - 1] + (character != other)))
+        previous = current
+    return previous[-1]
+
+def _brand_lookalike(hostname: str) -> str | None:
+    translation = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "@": "a"})
+    for label in hostname.split(".")[:-1]:
+        for candidate in filter(None, re.split(r"[-_]", label.casefold())):
+            compact = candidate.translate(translation)
+            for brand in BRAND_TERMS:
+                if compact and candidate != brand and _edit_distance(compact, brand) <= 1:
+                    return brand
+    return None
 
 def message_evidence(text: str) -> tuple[list[str], int, list[tuple[int, int, str, str]]]:
     signals, score, highlights = [], 0, []
@@ -55,4 +77,21 @@ def url_signals(raw_url: str) -> tuple[list[str], int]:
     if labels and labels[-1] in SUSPICIOUS_TLDS: signals.append("Uses a higher-risk domain ending"); score += 15
     if any(term in hostname for term in BRAND_TERMS) and not is_official_domain(hostname): signals.append("May imitate a Philippine financial brand"); score += 38
     if "-" in hostname and any(term in hostname for term in BRAND_TERMS): signals.append("Uses a brand name in a hyphenated domain"); score += 15
+    lookalike = _brand_lookalike(hostname)
+    if lookalike and not is_official_domain(hostname):
+        signals.append(f"Domain label closely resembles the {lookalike.upper()} brand")
+        score += 34
+    if hostname in URL_SHORTENERS or any(hostname.endswith(f".{domain}") for domain in URL_SHORTENERS):
+        signals.append("Uses a URL shortener that hides the final destination")
+        score += 14
+    lowered_path = f"{parsed.path}?{parsed.query}".casefold()
+    if not is_official_domain(hostname) and any(term in lowered_path for term in URL_LURE_TERMS):
+        signals.append("URL path or query contains account or reward lure terms")
+        score += 12
+    if len(raw_url) > 220:
+        signals.append("Uses an unusually long URL that can conceal its destination")
+        score += 10
+    if parsed.query and re.search(r"(?:^|[?&])(redirect|redirect_uri|return_url|target|url)=", parsed.query, re.I):
+        signals.append("Contains a redirect parameter that can obscure the final destination")
+        score += 8
     return signals, min(score, 100)

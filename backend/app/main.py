@@ -13,7 +13,7 @@ from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
 from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
-from backend.app.services.url_intelligence import extract_url, inspect_url, normalize_url
+from backend.app.services.url_intelligence import extract_url, inspect_url, intelligence_risk_signals, normalize_url
 
 detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -80,6 +80,9 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     if external_observation:
         signals.append(f"External source reported this URL as suspicious; pending independent verification ({external_observation.source_name})")
         score = max(score, 40)
+    intelligence_signals, intelligence_score = intelligence_risk_signals(intelligence)
+    signals.extend(intelligence_signals)
+    score = max(score, intelligence_score)
     if intelligence.redirect_hosts:
         signals.append(f"Server-side redirect chain: {' → '.join(intelligence.redirect_hosts)}")
     if not intelligence.official_domain and intelligence.canonical_host and intelligence.canonical_host.startswith("xn--"):

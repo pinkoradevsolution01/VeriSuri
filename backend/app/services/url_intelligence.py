@@ -9,9 +9,20 @@ from backend.app.schemas import LinkIntelligence
 OFFICIAL_DOMAINS = ("gcash.com", "maya.ph", "bpi.com.ph", "bdo.com.ph", "metrobank.com.ph", "unionbankph.com")
 URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", re.IGNORECASE)
 
+def normalise_copied_url(value: str) -> str:
+    """Turn common safe-copy/defanged URL forms into a parsable URL string."""
+    clean = value.strip()
+    clean = re.sub(r"(?i)\b(https?)\s*\\+\s*:\s*", r"\1:", clean)
+    clean = re.sub(
+        r"(?i)\b(hxxps?)\s*:\s*//",
+        lambda match: "https://" if match.group(1).casefold() == "hxxps" else "http://",
+        clean,
+    )
+    return clean.replace("[.]", ".")
+
 def extract_url(value: str) -> tuple[str, bool]:
     """Accept a pasted URL or extract one safely from a copied message."""
-    raw = value.strip()
+    raw = normalise_copied_url(value)
     match = URL_IN_TEXT.search(raw)
     if match:
         candidate = match.group(0).rstrip(".,;:!)]}'\"")
@@ -22,10 +33,13 @@ def is_official_domain(host: str) -> bool:
     return any(host == domain or host.endswith(f".{domain}") for domain in OFFICIAL_DOMAINS)
 
 def normalize_url(value: str) -> tuple[str, str]:
-    raw = value.strip()
+    raw = normalise_copied_url(value)
     try:
         parsed = urlsplit(raw if "://" in raw else f"https://{raw}")
     except ValueError:
+        return "", ""
+    scheme = parsed.scheme.lower() or "https"
+    if scheme not in {"http", "https"}:
         return "", ""
     host = (parsed.hostname or "").lower().rstrip(".")
     try: host = host.encode("idna").decode("ascii")
@@ -35,7 +49,25 @@ def normalize_url(value: str) -> tuple[str, str]:
     except ValueError:
         return "", ""
     port = f":{port_number}" if port_number and port_number not in (80, 443) else ""
-    return host, urlunsplit((parsed.scheme.lower() or "https", f"{host}{port}", parsed.path or "/", parsed.query, ""))
+    return host, urlunsplit((scheme, f"{host}{port}", parsed.path or "/", parsed.query, ""))
+
+def intelligence_risk_signals(intelligence: LinkIntelligence) -> tuple[list[str], int]:
+    """Score passive destination evidence without claiming an unknown URL is safe."""
+    signals: list[str] = []
+    score = 0
+    if not intelligence.canonical_host:
+        return signals, score
+    if not intelligence.official_domain and intelligence.domain_age_days is not None:
+        if intelligence.domain_age_days < 30:
+            signals.append("Domain registration evidence suggests a very new domain (under 30 days old)")
+            score = max(score, 42)
+        elif intelligence.domain_age_days < 90:
+            signals.append("Domain registration evidence suggests a recently registered domain (under 90 days old)")
+            score = max(score, 25)
+    if intelligence.redirect_hosts and any(host != intelligence.canonical_host for host in intelligence.redirect_hosts):
+        signals.append("Server-side redirect inspection changed the destination host")
+        score = max(score, 35)
+    return signals, score
 
 async def _public_host(host: str) -> bool:
     if not host or host == "localhost": return False

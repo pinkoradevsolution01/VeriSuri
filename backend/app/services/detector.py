@@ -102,6 +102,22 @@ def _explanations(signals: list[str]) -> list[AssessmentExplanation]:
             label = "The URL uses an unusually deep subdomain"
         elif "higher-risk domain ending" in lower:
             label = "The URL uses a higher-risk domain ending"
+        elif "closely resembles" in lower:
+            label = "Domain label resembles a financial brand"
+        elif "url shortener" in lower:
+            label = "A URL shortener hides the final destination"
+        elif "lure terms" in lower:
+            label = "URL contains account, reward, or verification lure terms"
+        elif "unusually long url" in lower:
+            label = "An unusually long URL can conceal its destination"
+        elif "redirect parameter" in lower:
+            label = "Redirect parameter can obscure the final destination"
+        elif "very new domain" in lower:
+            label = "Domain registration evidence indicates a very new domain"
+        elif "recently registered domain" in lower:
+            label = "Domain registration evidence indicates a recently registered domain"
+        elif "changed the destination host" in lower:
+            label = "Redirect inspection changed the destination host"
         elif lower.startswith("phishtank"):
             category, label, source = "threat_feed", "Matched a known phishing URL", "PhishTank threat feed"
         elif lower.startswith("cert polska"):
