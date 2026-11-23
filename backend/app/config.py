@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     security_monitoring_salt: str = "development-only-change-in-production"
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
+    # Approved model artifacts are private Supabase Storage objects.  The API
+    # fetches them server-side into its ephemeral runtime cache; they are never
+    # shipped to the browser or committed to Git.
+    url_model_bucket: str = "verisuri-model-artifacts"
+    url_model_artifact_path: str = "url-models/verisuri-url-v1.joblib"
+    url_model_metrics_path: str = "url-models/verisuri-url-v1.metrics.json"
 
     @property
     def origins(self) -> list[str]:

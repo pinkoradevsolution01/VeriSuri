@@ -4,6 +4,7 @@ from backend.app.services.rules import url_signals
 from backend.app.schemas import LinkIntelligence
 from backend.app.services.url_intelligence import extract_url, intelligence_risk_signals, is_official_domain, normalize_url, official_provider_for_host
 from backend.url_validation import url_release_failures
+from backend.app.services.url_model import UrlPhishingModel
 
 
 class UrlSafetyTests(unittest.TestCase):
@@ -54,6 +55,12 @@ class UrlSafetyTests(unittest.TestCase):
         failures = url_release_failures({"version": "verisuri-url-v1", "dataset_validation": {"production_eligible": True}, "test_rows": 100, "evaluation_protocol": {"holdout_digest": "digest"}, "f1": .9, "recall": .9, "precision": .9, "false_positive_rate": .01})
         self.assertEqual(failures, [])
         self.assertTrue(url_release_failures({"version": "verisuri-url-v1"}))
+
+    def test_runtime_model_loader_requires_an_approved_release(self):
+        metrics = {"version": "verisuri-url-v1", "model_kind": "url-phishing", "release_status": "approved", "dataset_validation": {"production_eligible": True}}
+        self.assertTrue(UrlPhishingModel.approved_metrics(metrics))
+        metrics["release_status"] = "candidate"
+        self.assertFalse(UrlPhishingModel.approved_metrics(metrics))
 
     def test_malformed_url_is_safe_to_reject(self):
         host, canonical = normalize_url("https://[bad-host")

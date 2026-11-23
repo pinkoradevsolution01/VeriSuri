@@ -7,6 +7,7 @@ __pycache__/
 *.py[cod]
 .venv/
 backend/models/*.joblib
+backend/models/*.metrics.json
 backend/data/*.csv
 backend/data/*.provenance.json
 backend/data/raw/

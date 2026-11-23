@@ -52,12 +52,14 @@ async def monitor_and_limit(request: Request, call_next):
 
 @app.get("/api/v1/health")
 async def health() -> dict[str, str | bool]:
+    settings = get_settings()
     return {
         "status": "ok",
         "engine": detector.version,
         "model_release_approved": detector.model_release_approved,
         "url_model": url_model.version,
         "url_model_release_approved": url_model.release_approved,
+        "url_model_remote_configured": url_model.remote_configured(settings.supabase_url, settings.supabase_service_role_key),
         "web_risk_configured": web_risk.configured,
         "web_risk_enabled": web_risk.enabled,
         "supabase_report_matching_configured": repository.enabled,
@@ -69,6 +71,7 @@ async def analyze_message(payload: MessageRequest) -> Assessment: return detecto
 
 @app.post("/api/v1/analyze/link", response_model=Assessment)
 async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
+    settings = get_settings()
     submitted_url, extracted_from_text = extract_url(payload.url)
     signals, score = url_signals(submitted_url)
     if extracted_from_text:
@@ -97,6 +100,13 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     feed_result = await threat_feeds.lookup(submitted_url)
     signals.extend(feed_result.signals)
     score = max(score, feed_result.score)
+    await url_model.ensure_loaded(
+        supabase_url=settings.supabase_url,
+        service_role_key=settings.supabase_service_role_key,
+        bucket=settings.url_model_bucket,
+        artifact_path=settings.url_model_artifact_path,
+        metrics_path=settings.url_model_metrics_path,
+    )
     url_model_probability = url_model.predict(canonical_url)
     if url_model_probability is not None:
         signals.append("Approved VeriSuri URL model completed a calibrated local assessment")
