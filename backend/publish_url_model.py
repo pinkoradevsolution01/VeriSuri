@@ -52,6 +52,7 @@ def main() -> None:
     base = settings.supabase_url.rstrip("/")
     bucket = settings.url_model_bucket
     key = settings.supabase_service_role_key
+    stage = "create private bucket"
     try:
         with httpx.Client(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
             created = client.post(
@@ -59,8 +60,12 @@ def main() -> None:
                 headers=_headers(key, "application/json"),
                 json={"id": bucket, "name": bucket, "public": False},
             )
-            if created.status_code not in {200, 201, 409}:
+            # Supabase Storage returns either 400 or 409 for an already-created
+            # bucket depending on the platform version. The following read is
+            # the authoritative check, including its non-public setting.
+            if created.status_code not in {200, 201, 400, 409}:
                 created.raise_for_status()
+            stage = "verify private bucket"
             bucket_response = client.get(f"{base}/storage/v1/bucket/{bucket}", headers=_headers(key))
             bucket_response.raise_for_status()
             if bool(bucket_response.json().get("public")):
@@ -69,14 +74,22 @@ def main() -> None:
                 (settings.url_model_metrics_path, json.dumps(metrics, indent=2).encode("utf-8"), "application/json"),
                 (settings.url_model_artifact_path, artifact, "application/octet-stream"),
             ):
+                stage = f"upload {'metadata' if content_type == 'application/json' else 'model artifact'}"
                 uploaded = client.post(
                     f"{base}/storage/v1/object/{bucket}/{path}",
                     headers={**_headers(key, content_type), "x-upsert": "true"},
                     content=body,
                 )
                 uploaded.raise_for_status()
+    except httpx.HTTPStatusError as error:
+        # Deliberately expose only the HTTP status, never response bodies or
+        # request headers, because those can contain sensitive project detail.
+        raise SystemExit(
+            f"Private model publication failed during {stage} with HTTP {error.response.status_code}. "
+            "Check the Supabase Storage bucket settings and service-role key."
+        ) from error
     except httpx.HTTPError as error:
-        raise SystemExit("Private model publication failed. Check the Supabase Storage configuration and service-role key.") from error
+        raise SystemExit("Private model publication could not reach Supabase Storage.") from error
 
     print(json.dumps({
         "published": True,

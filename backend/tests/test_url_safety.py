@@ -62,6 +62,11 @@ class UrlSafetyTests(unittest.TestCase):
         metrics["release_status"] = "candidate"
         self.assertFalse(UrlPhishingModel.approved_metrics(metrics))
 
+    def test_model_only_score_cannot_override_official_or_become_high_risk(self):
+        self.assertIsNone(UrlPhishingModel.decision_contribution(99, official_domain=True, corroborated=False))
+        self.assertEqual(UrlPhishingModel.decision_contribution(99, official_domain=False, corroborated=False), 59)
+        self.assertEqual(UrlPhishingModel.decision_contribution(99, official_domain=False, corroborated=True), 99)
+
     def test_malformed_url_is_safe_to_reject(self):
         host, canonical = normalize_url("https://[bad-host")
         self.assertEqual((host, canonical), ("", ""))

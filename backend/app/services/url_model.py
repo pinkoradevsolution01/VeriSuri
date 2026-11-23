@@ -110,3 +110,18 @@ class UrlPhishingModel:
             return round(float(self.model.predict_proba([canonical_url])[0][1]) * 100)
         except Exception:
             return None
+
+    @staticmethod
+    def decision_contribution(probability: int | None, *, official_domain: bool, corroborated: bool) -> int | None:
+        """Keep ML screening subordinate to independently verifiable evidence.
+
+        The URL corpus is useful for prioritising review, but a model output alone
+        must not label a link as high-risk. A verified-provider domain also cannot
+        be overridden by character-pattern ML alone. Confirmed reports and threat
+        feed evidence retain their stronger, independently sourced weighting.
+        """
+        if probability is None or official_domain:
+            return None
+        if corroborated:
+            return probability
+        return min(60, round(probability * 0.60))

@@ -108,9 +108,16 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
         metrics_path=settings.url_model_metrics_path,
     )
     url_model_probability = url_model.predict(canonical_url)
-    if url_model_probability is not None:
-        signals.append("Approved VeriSuri URL model completed a calibrated local assessment")
-        score = max(score, url_model_probability)
+    model_score = url_model.decision_contribution(
+        url_model_probability,
+        official_domain=intelligence.official_domain,
+        corroborated=bool(confirmed_url_reports or feed_result.score >= 65),
+    )
+    if model_score is not None:
+        signals.append("Approved VeriSuri URL model completed a calibrated screening assessment; model-only outcomes remain cautionary")
+        score = max(score, model_score)
+    elif url_model_probability is not None and intelligence.official_domain:
+        signals.append("Host matches a verified provider domain; model-only URL screening was not used as risk evidence")
     unsafe, threat_types = None, []
     source = f"{feed_result.source}+external-reported-source" if external_observation else feed_result.source
     # Google Web Risk remains implemented for a later billing-enabled release.
@@ -140,10 +147,10 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
                         source = "google-web-risk+zero-fee-threat-feeds+python-rules"
                         signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
-    engine_version = f"{detector.version}+{url_model.version}" if url_model_probability is not None else detector.version
-    if url_model_probability is not None:
+    engine_version = f"{detector.version}+{url_model.version}" if model_score is not None else detector.version
+    if model_score is not None:
         source = f"{source}+approved-url-model"
-    assessment = build_assessment(score, signals, engine_version, source, "link", submitted_url, calibrated_scam_probability=url_model_probability, confidence_basis="Calibrated probability from the approved VeriSuri URL phishing model." if url_model_probability is not None else None)
+    assessment = build_assessment(score, signals, engine_version, source, "link", submitted_url, calibrated_scam_probability=url_model_probability if model_score is not None else None, confidence_basis="Calibrated screening estimate from the approved VeriSuri URL model; independent evidence determines high-confidence results." if model_score is not None else None)
     assessment.link_intelligence = intelligence
     return assessment
 
