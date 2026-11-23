@@ -2,7 +2,8 @@ import unittest
 
 from backend.app.services.rules import url_signals
 from backend.app.schemas import LinkIntelligence
-from backend.app.services.url_intelligence import extract_url, intelligence_risk_signals, is_official_domain, normalize_url
+from backend.app.services.url_intelligence import extract_url, intelligence_risk_signals, is_official_domain, normalize_url, official_provider_for_host
+from backend.url_validation import url_release_failures
 
 
 class UrlSafetyTests(unittest.TestCase):
@@ -19,6 +20,7 @@ class UrlSafetyTests(unittest.TestCase):
     def test_official_domain_requires_a_label_boundary(self):
         self.assertTrue(is_official_domain("www.bdo.com.ph"))
         self.assertFalse(is_official_domain("evilbdo.com.ph"))
+        self.assertEqual(official_provider_for_host("help.gotyme.com.ph"), "GoTyme Bank")
         signals, score = url_signals("https://evilbdo.com.ph/login")
         self.assertIn("May imitate a Philippine financial brand", signals)
         self.assertGreaterEqual(score, 38)
@@ -40,6 +42,18 @@ class UrlSafetyTests(unittest.TestCase):
         self.assertIn("Domain registration evidence suggests a very new domain (under 30 days old)", signals)
         self.assertIn("Server-side redirect inspection changed the destination host", signals)
         self.assertGreaterEqual(score, 42)
+
+    def test_unvalidated_tls_and_non_public_dns_are_risk_signals(self):
+        intelligence = LinkIntelligence(canonical_host="example.test", dns_public_resolvable=False, tls_certificate_valid=False)
+        signals, score = intelligence_risk_signals(intelligence)
+        self.assertIn("Destination does not resolve only to public DNS addresses", signals)
+        self.assertIn("HTTPS certificate could not be validated server-side", signals)
+        self.assertGreaterEqual(score, 75)
+
+    def test_url_model_release_requires_real_evaluation_evidence(self):
+        failures = url_release_failures({"version": "verisuri-url-v1", "dataset_validation": {"production_eligible": True}, "test_rows": 100, "evaluation_protocol": {"holdout_digest": "digest"}, "f1": .9, "recall": .9, "precision": .9, "false_positive_rate": .01})
+        self.assertEqual(failures, [])
+        self.assertTrue(url_release_failures({"version": "verisuri-url-v1"}))
 
     def test_malformed_url_is_safe_to_reject(self):
         host, canonical = normalize_url("https://[bad-host")

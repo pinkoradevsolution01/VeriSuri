@@ -28,9 +28,13 @@ class HighlightedSignal(BaseModel):
 class LinkIntelligence(BaseModel):
     canonical_host: str | None = None
     official_domain: bool = False
+    official_provider: str | None = None
     redirect_hosts: list[str] = []
     domain_registered_on: str | None = None
     domain_age_days: int | None = None
+    dns_public_resolvable: bool | None = None
+    tls_certificate_valid: bool | None = None
+    tls_certificate_expires_on: str | None = None
     notes: list[str] = []
 
 

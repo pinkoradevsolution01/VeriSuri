@@ -36,3 +36,19 @@ The evaluator blocks release candidates unless overall, per-language, and per-sc
 Never retrain directly from live user reports. A new candidate may be trained only after records have explicit model-training permission, sensitive details have been redacted, a moderator has approved each row, and the full validation/evaluation/approval sequence above completes again. The previous approved model remains active until a human reviewer approves the replacement.
 
 For a pipeline smoke test only, run `py backend/generate_demo_dataset.py` and train against `backend/data/synthetic_demo_messages.csv`. This synthetic output is intentionally excluded from Git and must never be registered or deployed as a production model.
+
+## URL phishing model contract
+
+The URL model is separate from the message model. Its UTF-8 CSV requires:
+url,label,scam_type,source,consent_reference,moderation_reference.
+Use phishing for a scam URL and legitimate for a legitimate URL.
+
+The trainer requires at least 500 permissioned, moderated URLs with at least
+150 phishing and 150 legitimate records. It writes a candidate only. The model
+stays disabled until its held-out precision, recall, F1, calibration, and
+false-positive-rate gates pass and a named reviewer approves it:
+
+    python -m backend.train_url_model backend/data/approved_urls.csv --version verisuri-url-v1
+    python -m backend.approve_url_model backend/models/verisuri_url_v1.metrics.json --reviewer "reviewer-id"
+
+Never train this model from unreviewed reports or synthetic examples.

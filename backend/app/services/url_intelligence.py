@@ -1,12 +1,20 @@
 """Server-side URL intelligence. It never sends the user browser to a submitted link."""
 from __future__ import annotations
-import asyncio, ipaddress, re, socket
+import asyncio, ipaddress, re, socket, ssl
 from datetime import UTC, datetime
 from urllib.parse import urlsplit, urlunsplit
 import httpx
 from backend.app.schemas import LinkIntelligence
 
-OFFICIAL_DOMAINS = ("gcash.com", "maya.ph", "bpi.com.ph", "bdo.com.ph", "metrobank.com.ph", "unionbankph.com")
+# Provider-owned domains only. Review this registry before each production
+# release; an allowlist match is helpful evidence, never a safety guarantee.
+OFFICIAL_PROVIDER_DOMAINS: dict[str, tuple[str, ...]] = {
+    "GCash": ("gcash.com",), "Maya": ("maya.ph",), "BDO": ("bdo.com.ph",),
+    "BPI": ("bpi.com.ph",), "Metrobank": ("metrobank.com.ph",), "UnionBank": ("unionbankph.com",),
+    "GoTyme Bank": ("gotyme.com.ph",), "Security Bank": ("securitybank.com",), "LANDBANK": ("landbank.com",),
+    "Globe": ("globe.com.ph",), "Smart / TNT": ("smart.com.ph",), "DITO": ("dito.ph",),
+}
+OFFICIAL_DOMAINS = tuple(domain for domains in OFFICIAL_PROVIDER_DOMAINS.values() for domain in domains)
 URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", re.IGNORECASE)
 
 def normalise_copied_url(value: str) -> str:
@@ -31,6 +39,9 @@ def extract_url(value: str) -> tuple[str, bool]:
 
 def is_official_domain(host: str) -> bool:
     return any(host == domain or host.endswith(f".{domain}") for domain in OFFICIAL_DOMAINS)
+
+def official_provider_for_host(host: str) -> str | None:
+    return next((provider for provider, domains in OFFICIAL_PROVIDER_DOMAINS.items() if any(host == domain or host.endswith(f".{domain}") for domain in domains)), None)
 
 def normalize_url(value: str) -> tuple[str, str]:
     raw = normalise_copied_url(value)
@@ -57,6 +68,12 @@ def intelligence_risk_signals(intelligence: LinkIntelligence) -> tuple[list[str]
     score = 0
     if not intelligence.canonical_host:
         return signals, score
+    if intelligence.dns_public_resolvable is False:
+        signals.append("Destination does not resolve only to public DNS addresses")
+        score = max(score, 75)
+    if intelligence.tls_certificate_valid is False:
+        signals.append("HTTPS certificate could not be validated server-side")
+        score = max(score, 55)
     if not intelligence.official_domain and intelligence.domain_age_days is not None:
         if intelligence.domain_age_days < 30:
             signals.append("Domain registration evidence suggests a very new domain (under 30 days old)")
@@ -69,25 +86,59 @@ def intelligence_risk_signals(intelligence: LinkIntelligence) -> tuple[list[str]
         score = max(score, 35)
     return signals, score
 
-async def _public_host(host: str) -> bool:
-    if not host or host == "localhost": return False
+async def _public_addresses(host: str) -> list[str]:
+    if not host or host == "localhost": return []
     try:
         records = await asyncio.to_thread(socket.getaddrinfo, host, None)
-        return bool(records) and all(ipaddress.ip_address(record[4][0]).is_global for record in records)
-    except (OSError, ValueError): return False
+        addresses = sorted({record[4][0] for record in records})
+        return addresses if addresses and all(ipaddress.ip_address(address).is_global for address in addresses) else []
+    except (OSError, ValueError): return []
+
+async def _public_host(host: str) -> bool:
+    return bool(await _public_addresses(host))
+
+def _inspect_tls_certificate(host: str, addresses: list[str]) -> tuple[bool | None, str | None]:
+    """Validate only a TLS handshake to an already-public resolved address."""
+    context = ssl.create_default_context()
+    for address in addresses:
+        try:
+            with socket.create_connection((address, 443), timeout=4) as connection:
+                with context.wrap_socket(connection, server_hostname=host) as secure_connection:
+                    certificate = secure_connection.getpeercert()
+                    expires = certificate.get("notAfter")
+                    expires_on = datetime.strptime(expires, "%b %d %H:%M:%S %Y %Z").date().isoformat() if expires else None
+                    return True, expires_on
+        except ssl.SSLCertVerificationError:
+            return False, None
+        except (OSError, ssl.SSLError, ValueError):
+            continue
+    return None, None
 
 async def inspect_url(raw_url: str) -> LinkIntelligence:
     host, canonical = normalize_url(raw_url)
     official = is_official_domain(host)
+    provider = official_provider_for_host(host)
     notes: list[str] = ["Canonical URL was normalized on the server; the submitted link was not opened in your browser."]
     if host.startswith("xn--"): notes.append("Internationalized (punycode) domain detected; inspect the destination carefully.")
-    if official: notes.append("Host matches VeriSuri's official-domain allowlist.")
+    if official: notes.append(f"Host matches VeriSuri's official {provider} domain allowlist.")
     redirects: list[str] = []
     registered_on: str | None = None
     age_days: int | None = None
-    if not await _public_host(host):
+    addresses = await _public_addresses(host)
+    if not addresses:
         notes.append("Destination is not a public resolvable host; server-side redirect checks were not performed.")
-        return LinkIntelligence(canonical_host=host or None, official_domain=official, redirect_hosts=redirects, notes=notes)
+        return LinkIntelligence(canonical_host=host or None, official_domain=official, official_provider=provider, redirect_hosts=redirects, dns_public_resolvable=False, notes=notes)
+    notes.append("Destination resolves to public DNS addresses; no page content was downloaded.")
+    tls_valid: bool | None = None
+    tls_expires_on: str | None = None
+    if canonical.startswith("https://"):
+        tls_valid, tls_expires_on = await asyncio.to_thread(_inspect_tls_certificate, host, addresses)
+        if tls_valid is True:
+            notes.append("HTTPS certificate was validated server-side; this does not prove the site is trustworthy.")
+        elif tls_valid is False:
+            notes.append("HTTPS certificate could not be validated server-side.")
+        else:
+            notes.append("HTTPS certificate evidence was unavailable at this time.")
     current = canonical
     try:
         async with httpx.AsyncClient(timeout=4, follow_redirects=False, headers={"User-Agent": "VeriSuri-Link-Safety/1.0"}) as client:
@@ -109,4 +160,4 @@ async def inspect_url(raw_url: str) -> LinkIntelligence:
                 redirects.append(next_host); current = next_url
             if redirects: notes.append(f"Server-side redirect inspection found {len(redirects)} redirect hop(s).")
     except (httpx.HTTPError, ValueError): notes.append("Redirect or domain-registration evidence could not be inspected safely at this time.")
-    return LinkIntelligence(canonical_host=host, official_domain=official, redirect_hosts=redirects, domain_registered_on=registered_on, domain_age_days=age_days, notes=notes)
+    return LinkIntelligence(canonical_host=host, official_domain=official, official_provider=provider, redirect_hosts=redirects, domain_registered_on=registered_on, domain_age_days=age_days, dns_public_resolvable=True, tls_certificate_valid=tls_valid, tls_certificate_expires_on=tls_expires_on, notes=notes)

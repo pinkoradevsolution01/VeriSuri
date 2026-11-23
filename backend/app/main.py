@@ -14,8 +14,9 @@ from backend.app.services.supabase import SupabaseRepository
 from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
 from backend.app.services.url_intelligence import extract_url, inspect_url, intelligence_risk_signals, normalize_url
+from backend.app.services.url_model import UrlPhishingModel
 
-detector, repository, web_risk, threat_feeds = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient()
+detector, repository, web_risk, threat_feeds, url_model = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient(), UrlPhishingModel()
 app = FastAPI(title="VeriSuri Detection API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().origins, allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["*"])
 rate_limiter = RequestRateLimiter(get_settings().api_rate_limit_per_minute)
@@ -55,6 +56,8 @@ async def health() -> dict[str, str | bool]:
         "status": "ok",
         "engine": detector.version,
         "model_release_approved": detector.model_release_approved,
+        "url_model": url_model.version,
+        "url_model_release_approved": url_model.release_approved,
         "web_risk_configured": web_risk.configured,
         "web_risk_enabled": web_risk.enabled,
         "supabase_report_matching_configured": repository.enabled,
@@ -80,6 +83,10 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     if external_observation:
         signals.append(f"External source reported this URL as suspicious; pending independent verification ({external_observation.source_name})")
         score = max(score, 40)
+    confirmed_url_reports = await repository.report_count("url", canonical_url)
+    if confirmed_url_reports:
+        signals.append(f"Matched {confirmed_url_reports} confirmed community report(s) for this URL")
+        score = max(score, min(95, 62 + confirmed_url_reports * 8))
     intelligence_signals, intelligence_score = intelligence_risk_signals(intelligence)
     signals.extend(intelligence_signals)
     score = max(score, intelligence_score)
@@ -90,6 +97,10 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     feed_result = await threat_feeds.lookup(submitted_url)
     signals.extend(feed_result.signals)
     score = max(score, feed_result.score)
+    url_model_probability = url_model.predict(canonical_url)
+    if url_model_probability is not None:
+        signals.append("Approved VeriSuri URL model completed a calibrated local assessment")
+        score = max(score, url_model_probability)
     unsafe, threat_types = None, []
     source = f"{feed_result.source}+external-reported-source" if external_observation else feed_result.source
     # Google Web Risk remains implemented for a later billing-enabled release.
@@ -119,7 +130,10 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
                         source = "google-web-risk+zero-fee-threat-feeds+python-rules"
                         signals.append(f"{quota.plan.title()} plan: {quota.remaining_today} of {quota.daily_limit} Google Web Risk scans remain today")
     if unsafe: signals.append(f"Google Web Risk matched: {', '.join(threat_types)}"); score = max(score, 92)
-    assessment = build_assessment(score, signals, detector.version, source, "link", submitted_url)
+    engine_version = f"{detector.version}+{url_model.version}" if url_model_probability is not None else detector.version
+    if url_model_probability is not None:
+        source = f"{source}+approved-url-model"
+    assessment = build_assessment(score, signals, engine_version, source, "link", submitted_url, calibrated_scam_probability=url_model_probability, confidence_basis="Calibrated probability from the approved VeriSuri URL phishing model." if url_model_probability is not None else None)
     assessment.link_intelligence = intelligence
     return assessment
 
