@@ -45,6 +45,11 @@ def main() -> None:
     args = parser.parse_args()
     if "demo" in args.version.casefold() or "synthetic" in args.version.casefold():
         raise ValueError("Demo and synthetic versions cannot be URL-model release candidates.")
+    if not args.dataset.is_file():
+        raise SystemExit(
+            f"Dataset not found: {args.dataset}. Copy backend/data/permissioned_urls.template.csv.example "
+            "to backend/data/approved_urls.csv, replace every example row with permissioned reviewed URLs, then rerun."
+        )
     rows, validation = load_permissioned_url_rows(args.dataset, minimum_rows=args.minimum_rows)
     urls, labels = [row["url"] for row in rows], [int(row["label"]) for row in rows]
     train_x, test_x, train_y, test_y = train_test_split(urls, labels, test_size=.2, random_state=42, stratify=labels)

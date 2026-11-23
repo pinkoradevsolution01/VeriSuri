@@ -43,6 +43,10 @@ The URL model is separate from the message model. Its UTF-8 CSV requires:
 url,label,scam_type,source,consent_reference,moderation_reference.
 Use phishing for a scam URL and legitimate for a legitimate URL.
 
+Start with backend/data/permissioned_urls.template.csv.example, copy it to
+backend/data/approved_urls.csv, and replace every example row. The template
+is a schema guide only and cannot be used to train or release a model.
+
 The trainer requires at least 500 permissioned, moderated URLs with at least
 150 phishing and 150 legitimate records. It writes a candidate only. The model
 stays disabled until its held-out precision, recall, F1, calibration, and

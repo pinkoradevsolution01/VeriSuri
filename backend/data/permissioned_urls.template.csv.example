@@ -1,0 +1,3 @@
+url,label,scam_type,source,consent_reference,moderation_reference
+https://replace-with-reviewed-phishing.example/path,1,phishing,replace-with-authorised-source,replace-with-consent-reference,replace-with-moderation-reference
+https://replace-with-reviewed-legitimate.example/,0,legitimate,replace-with-authorised-source,replace-with-consent-reference,replace-with-moderation-reference
