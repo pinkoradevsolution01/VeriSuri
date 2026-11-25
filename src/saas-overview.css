@@ -17,7 +17,7 @@
 
 /* Keep Pro distinct without a large raised frame or oversized badge. */
 .saas-pricing-grid article.featured{transform:translateY(-4px);border-color:#4de9e3;box-shadow:0 18px 38px #0007,0 0 0 1px #57f4ed2e inset}
-.saas-pricing-grid .pricing-badge{top:14px;right:14px;left:auto;padding:4px 8px;border:1px solid #8cfff95e;box-shadow:0 5px 12px #001e2e66;font-size:9px;line-height:1.15;letter-spacing:.055em;text-transform:uppercase}
+.saas-pricing-grid .pricing-badge{position:static;align-self:flex-start;display:inline-flex;margin:0 0 12px;padding:4px 8px;border:1px solid #8cfff95e;box-shadow:0 5px 12px #001e2e66;font-size:9px;line-height:1.15;letter-spacing:.055em;text-transform:uppercase}
 @media(max-width:900px){.saas-pricing-grid article.featured{transform:none}}
 
 /* A calm backdrop with a cursor-led electric current on empty page space. */
