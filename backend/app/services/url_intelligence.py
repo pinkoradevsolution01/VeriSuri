@@ -15,7 +15,12 @@ OFFICIAL_PROVIDER_DOMAINS: dict[str, tuple[str, ...]] = {
     "Globe": ("globe.com.ph",), "Smart / TNT": ("smart.com.ph",), "DITO": ("dito.ph",),
 }
 OFFICIAL_DOMAINS = tuple(domain for domains in OFFICIAL_PROVIDER_DOMAINS.values() for domain in domains)
+TRUSTED_REFERENCE_DOMAINS = ("google.com", "googleusercontent.com", "microsoft.com", "apple.com", "github.com")
 URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", re.IGNORECASE)
+
+
+class UrlInputValidationError(ValueError):
+    """A submitted Link Checker value cannot be safely assessed as one URL."""
 
 def normalise_copied_url(value: str) -> str:
     """Turn common safe-copy/defanged URL forms into a parsable URL string."""
@@ -37,11 +42,34 @@ def extract_url(value: str) -> tuple[str, bool]:
         return candidate, candidate != raw
     return raw, False
 
+
+def submitted_urls(value: str) -> list[str]:
+    """Return every HTTP(S) URL in a pasted value, without visiting any of them."""
+    raw = normalise_copied_url(value)
+    return [match.group(0).rstrip(".,;:!)]}'\"") for match in URL_IN_TEXT.finditer(raw)]
+
+
+def validate_single_submitted_url(value: str) -> tuple[str, bool]:
+    """Require exactly one complete, syntactically valid HTTP(S) destination."""
+    candidates = submitted_urls(value)
+    if len(candidates) > 1:
+        raise UrlInputValidationError("Submit exactly one URL at a time. More than one link was found, so none was checked.")
+    submitted = candidates[0] if candidates else normalise_copied_url(value)
+    host, canonical = normalize_url(submitted)
+    if not host or not canonical:
+        raise UrlInputValidationError("Enter one complete HTTP or HTTPS URL, such as https://example.com.")
+    return submitted, bool(candidates and submitted != normalise_copied_url(value))
+
 def is_official_domain(host: str) -> bool:
     return any(host == domain or host.endswith(f".{domain}") for domain in OFFICIAL_DOMAINS)
 
 def official_provider_for_host(host: str) -> str | None:
     return next((provider for provider, domains in OFFICIAL_PROVIDER_DOMAINS.items() if any(host == domain or host.endswith(f".{domain}") for domain in domains)), None)
+
+
+def is_trusted_reference_domain(host: str) -> bool:
+    """Known neutral platforms are excluded from lexical-model-only risk scoring."""
+    return any(host == domain or host.endswith(f".{domain}") for domain in TRUSTED_REFERENCE_DOMAINS)
 
 def normalize_url(value: str) -> tuple[str, str]:
     raw = normalise_copied_url(value)
@@ -55,6 +83,8 @@ def normalize_url(value: str) -> tuple[str, str]:
     host = (parsed.hostname or "").lower().rstrip(".")
     try: host = host.encode("idna").decode("ascii")
     except UnicodeError: pass
+    if not host or any(character.isspace() for character in host) or ("." not in host and not re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host)):
+        return "", ""
     try:
         port_number = parsed.port
     except ValueError:

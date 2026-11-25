@@ -1,8 +1,8 @@
 import unittest
 
-from backend.app.services.rules import url_signals
+from backend.app.services.rules import message_evidence, url_signals
 from backend.app.schemas import LinkIntelligence
-from backend.app.services.url_intelligence import extract_url, intelligence_risk_signals, is_official_domain, normalize_url, official_provider_for_host
+from backend.app.services.url_intelligence import UrlInputValidationError, extract_url, intelligence_risk_signals, is_official_domain, normalize_url, official_provider_for_host, validate_single_submitted_url
 from backend.url_validation import url_release_failures
 from backend.app.services.url_model import UrlPhishingModel
 
@@ -32,6 +32,22 @@ class UrlSafetyTests(unittest.TestCase):
         self.assertIn("URL path or query contains account or reward lure terms", signals)
         self.assertIn("Contains a redirect parameter that can obscure the final destination", signals)
         self.assertGreaterEqual(score, 50)
+
+    def test_safety_advice_in_tagalog_does_not_become_a_credential_request(self):
+        signals, score, _ = message_evidence("Huwag mong ibigay ang OTP, PIN, o password kahit kanino. Hindi ito hihingin ng bangko.")
+        self.assertEqual(signals, [])
+        self.assertEqual(score, 0)
+
+    def test_search_query_keywords_do_not_become_a_url_lure_signal(self):
+        signals, score = url_signals("https://www.google.com/search?q=account+verification")
+        self.assertNotIn("URL path or query contains account or reward lure terms", signals)
+        self.assertEqual(score, 0)
+
+    def test_link_checker_rejects_multiple_or_malformed_links(self):
+        with self.assertRaises(UrlInputValidationError):
+            validate_single_submitted_url("https://google.com https://bdoph.me/login")
+        with self.assertRaises(UrlInputValidationError):
+            validate_single_submitted_url("not a url")
 
     def test_passive_destination_evidence_increases_caution(self):
         intelligence = LinkIntelligence(

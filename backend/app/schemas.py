@@ -1,6 +1,8 @@
 from enum import Enum
 from uuid import UUID
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class RiskLevel(str, Enum):
@@ -69,6 +71,18 @@ class LinkRequest(BaseModel):
 class PaymentRequest(BaseModel):
     identifier: str = Field(min_length=3, max_length=180)
     provider: str = Field(pattern="^(gcash|maya|bank)$")
+
+    @model_validator(mode="after")
+    def validate_payment_identifier(self):
+        compact = re.sub(r"[\s-]", "", self.identifier)
+        if self.provider in {"gcash", "maya"}:
+            digits = compact.removeprefix("+")
+            valid = bool(re.fullmatch(r"(?:63|0)?9\d{9}", digits))
+            if not valid:
+                raise ValueError(f"Enter a valid Philippine mobile number for {self.provider.title()}, such as 0917 123 4567.")
+        elif not re.fullmatch(r"\d{6,30}", compact):
+            raise ValueError("Enter a valid bank account number using 6–30 digits.")
+        return self
 
 
 class ReportLookupRequest(BaseModel):

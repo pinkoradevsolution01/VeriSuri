@@ -36,7 +36,8 @@ async function post<T>(path: string, body: Record<string, string>): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
   if (!response.ok) {
     const message = await response.json().catch(() => null)
-    throw new Error(message?.detail ?? 'The protection service is unavailable. Please try again.')
+    const detail = Array.isArray(message?.detail) ? message.detail.map((issue: { msg?: string }) => issue.msg).filter(Boolean).join(' ') : message?.detail
+    throw new Error(detail ?? 'The protection service is unavailable. Please try again.')
   }
   return response.json() as Promise<T>
 }

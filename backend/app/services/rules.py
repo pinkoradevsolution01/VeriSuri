@@ -1,5 +1,5 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 from backend.app.services.url_intelligence import is_official_domain
 
 SCAM_PATTERNS: list[tuple[re.Pattern[str], str, int]] = [
@@ -18,6 +18,8 @@ SUSPICIOUS_TLDS = {"xyz", "top", "click", "live", "shop", "site", "info", "buzz"
 BRAND_TERMS = {"gcash", "maya", "bpi", "bdo", "metrobank", "unionbank", "paymaya"}
 URL_SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "shorturl.at", "tiny.one"}
 URL_LURE_TERMS = {"login", "verify", "verification", "secure", "activate", "claim", "reward", "credit", "limit", "otp"}
+SAFETY_ADVICE_NEGATION = re.compile(r"\b(?:huwag|wag|don't|do\s+not|never)\b", re.I)
+SAFETY_ADVICE_DENIAL = re.compile(r"\bhindi\b.{0,32}\b(?:hingi(?:in)?|ibigay|kailangan)\b", re.I)
 
 def _edit_distance(left: str, right: str) -> int:
     """Small dependency-free edit-distance helper for host-label lookalikes."""
@@ -43,7 +45,13 @@ def message_evidence(text: str) -> tuple[list[str], int, list[tuple[int, int, st
     signals, score, highlights = [], 0, []
     for pattern, signal, weight in SCAM_PATTERNS:
         match = pattern.search(text)
-        if match:
+        if not match:
+            continue
+        # Advice such as "Huwag mong ibigay ang OTP" warns the reader not to
+        # share credentials. It must never be mistaken for a credential request.
+        context = text[max(0, match.start() - 60): min(len(text), match.end() + 60)]
+        safety_advice = bool(SAFETY_ADVICE_NEGATION.search(context) or SAFETY_ADVICE_DENIAL.search(context))
+        if not safety_advice:
             signals.append(signal); score += weight
             highlights.append((match.start(), match.end(), match.group(0), signal))
     url_match = re.search(r"https?://\S+", text, re.I)
@@ -84,8 +92,12 @@ def url_signals(raw_url: str) -> tuple[list[str], int]:
     if hostname in URL_SHORTENERS or any(hostname.endswith(f".{domain}") for domain in URL_SHORTENERS):
         signals.append("Uses a URL shortener that hides the final destination")
         score += 14
-    lowered_path = f"{parsed.path}?{parsed.query}".casefold()
-    if not is_official_domain(hostname) and any(term in lowered_path for term in URL_LURE_TERMS):
+    # Search-query values are user-provided text. For example, a Google search
+    # for "account verification" is not a credential lure. Restrict this rule
+    # to a destination path or to suspicious-looking query parameter names.
+    path_terms = parsed.path.casefold()
+    query_keys = " ".join(key.casefold() for key, _ in parse_qsl(parsed.query, keep_blank_values=True))
+    if not is_official_domain(hostname) and any(term in path_terms or term in query_keys for term in URL_LURE_TERMS):
         signals.append("URL path or query contains account or reward lure terms")
         score += 12
     if len(raw_url) > 220:

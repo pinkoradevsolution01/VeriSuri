@@ -13,7 +13,7 @@ from backend.app.services.rules import url_signals
 from backend.app.services.supabase import SupabaseRepository
 from backend.app.services.threat_feeds import ThreatFeedClient
 from backend.app.services.web_risk import WebRiskClient
-from backend.app.services.url_intelligence import extract_url, inspect_url, intelligence_risk_signals, normalize_url
+from backend.app.services.url_intelligence import UrlInputValidationError, inspect_url, intelligence_risk_signals, is_trusted_reference_domain, normalize_url, validate_single_submitted_url
 from backend.app.services.url_model import UrlPhishingModel
 
 detector, repository, web_risk, threat_feeds, url_model = HybridDetector(), SupabaseRepository(), WebRiskClient(), ThreatFeedClient(), UrlPhishingModel()
@@ -72,7 +72,10 @@ async def analyze_message(payload: MessageRequest) -> Assessment: return detecto
 @app.post("/api/v1/analyze/link", response_model=Assessment)
 async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     settings = get_settings()
-    submitted_url, extracted_from_text = extract_url(payload.url)
+    try:
+        submitted_url, extracted_from_text = validate_single_submitted_url(payload.url)
+    except UrlInputValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     signals, score = url_signals(submitted_url)
     if extracted_from_text:
         signals.insert(0, "A URL was extracted from pasted text; review the canonical host below")
@@ -110,14 +113,14 @@ async def analyze_link(payload: LinkRequest, request: Request) -> Assessment:
     url_model_probability = url_model.predict(canonical_url)
     model_score = url_model.decision_contribution(
         url_model_probability,
-        official_domain=intelligence.official_domain,
+        official_domain=intelligence.official_domain or is_trusted_reference_domain(intelligence.canonical_host or ""),
         corroborated=bool(confirmed_url_reports or feed_result.score >= 65),
     )
     if model_score is not None:
         signals.append("Approved VeriSuri URL model completed a calibrated screening assessment; model-only outcomes remain cautionary")
         score = max(score, model_score)
-    elif url_model_probability is not None and intelligence.official_domain:
-        signals.append("Host matches a verified provider domain; model-only URL screening was not used as risk evidence")
+    elif url_model_probability is not None and (intelligence.official_domain or is_trusted_reference_domain(intelligence.canonical_host or "")):
+        signals.append("Host is a verified provider or trusted reference domain; model-only URL screening was not used as risk evidence")
     unsafe, threat_types = None, []
     source = f"{feed_result.source}+external-reported-source" if external_observation else feed_result.source
     # Google Web Risk remains implemented for a later billing-enabled release.
